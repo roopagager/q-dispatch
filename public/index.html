@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Q-Dispatch — Quantum AI Ltd.</title>
+<style>
+  :root {
+    --navy: #1A2233;
+    --amber: #BA7517;
+    --amber-light: #FAEEDA;
+    --success: #3B6D11;
+    --success-bg: #EAF3DE;
+    --danger: #A32D2D;
+    --danger-bg: #FCEBEB;
+    --warn: #854F0B;
+    --warn-bg: #FAEEDA;
+    --info: #1f4e79;
+    --info-bg: #E5EEF6;
+    --bg: #F5F5F5;
+    --card: #FFFFFF;
+    --line: #e3e5e9;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: Arial, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--navy);
+    font-size: 14px;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; font-size: 14px; }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    background: var(--navy);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+  }
+  .badge {
+    background: var(--amber);
+    color: #fff;
+    font-weight: bold;
+    font-size: 13px;
+    letter-spacing: 0.6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+  }
+  .topbar .org { font-size: 14px; color: #cfd6e4; }
+  .topbar .spacer { flex: 1; }
+  .topbar button {
+    background: transparent;
+    border: 1px solid #3a4660;
+    color: #cfd6e4;
+    padding: 7px 14px;
+    border-radius: 8px;
+  }
+  .topbar button:hover { background: #232d44; }
+
+  /* ---- Pipeline strip ---- */
+  .pipeline {
+    background: #fff;
+    border-bottom: 1px solid var(--line);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+  }
+  .stage {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 170px;
+  }
+  .stage .dot {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: #e6e8ec;
+    color: #9aa1ad;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 13px;
+    flex-shrink: 0;
+    transition: all 0.25s;
+  }
+  .stage .meta { line-height: 1.25; }
+  .stage .meta .t { font-size: 11px; color: var(--muted); }
+  .stage .meta .n { font-size: 13px; font-weight: bold; }
+  .stage .conn {
+    flex: 1; height: 3px; background: #e6e8ec; margin: 0 8px; border-radius: 2px;
+    min-width: 20px;
+  }
+  .stage.active .dot { background: var(--amber); color: #fff; }
+  .stage.done .dot { background: var(--success); color: #fff; }
+  .stage.active .conn, .stage.done .conn { background: var(--amber); }
+
+  /* ---- Layout ---- */
+  .layout { display: flex; align-items: stretch; min-height: calc(100vh - 120px); }
+  .sidebar {
+    width: 290px;
+    background: #fff;
+    border-right: 1px solid var(--line);
+    padding: 16px;
+    flex-shrink: 0;
+  }
+  .sidebar h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin: 0 0 12px; }
+  .new-claim-btn {
+    width: 100%;
+    background: var(--amber);
+    color: #fff;
+    border: none;
+    padding: 11px;
+    border-radius: 8px;
+    font-weight: bold;
+    margin-bottom: 14px;
+  }
+  .new-claim-btn:hover { background: #a3650f; }
+  .claim-row {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 9px;
+    cursor: pointer;
+    background: #fff;
+  }
+  .claim-row:hover { border-color: var(--amber); background: #fffdf8; }
+  .claim-row.selected { border-color: var(--amber); background: var(--amber-light); }
+  .claim-row .name { font-weight: bold; }
+  .claim-row .sub { display: flex; justify-content: space-between; margin-top: 5px; align-items: center; }
+  .claim-row .amt { font-size: 13px; color: var(--navy); }
+  .claim-row .date { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .content { flex: 1; padding: 22px; max-width: 1000px; }
+
+  .status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 3px 9px;
+    border-radius: 999px;
+    letter-spacing: 0.3px;
+  }
+  .s-DRAFT { background: #ececec; color: #555; }
+  .s-AUDITED { background: var(--amber-light); color: var(--warn); }
+  .s-DISPATCHED { background: var(--info-bg); color: var(--info); }
+  .s-REPLIED { background: var(--success-bg); color: var(--success); }
+  .s-CLEARED { background: var(--success); color: #fff; }
+
+  /* ---- Cards & forms ---- */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px;
+    margin-bottom: 20px;
+  }
+  .card h3 { margin: 0 0 16px; font-size: 16px; }
+  .section-label { font-size: 13px; color: var(--amber); font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .field input, .field select {
+    width: 100%;
+    padding: 10px 11px;
+    border: 1px solid #d8dbe0;
+    border-radius: 8px;
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--amber); border-color: var(--amber); }
+
+  table.bill { width: 100%; border-collapse: collapse; }
+  table.bill th, table.bill td { border: 1px solid var(--line); padding: 7px 8px; font-size: 13px; }
+  table.bill th { background: #fafafa; text-align: left; font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 0.3px; }
+  table.bill td input {
+    width: 100%; border: 1px solid #e0e2e6; padding: 6px 7px; border-radius: 6px;
+  }
+  table.bill td.num input { text-align: right; }
+  .row-OK { background: var(--success-bg); }
+  .row-WARN { background: var(--warn-bg); }
+  .row-ERROR { background: var(--danger-bg); }
+  .audit-note { font-size: 12px; margin-top: 3px; }
+  .audit-note.WARN { color: var(--warn); }
+  .audit-note.ERROR { color: var(--danger); }
+
+  .btn {
+    border: none; border-radius: 8px; padding: 12px 20px; font-weight: bold; font-size: 14px;
+  }
+  .btn-primary { background: var(--navy); color: #fff; }
+  .btn-primary:hover { background: #12192a; }
+  .btn-amber { background: var(--amber); color: #fff; }
+  .btn-amber:hover { background: #a3650f; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-success:hover { background: #305a0d; }
+  .btn-ghost { background: #fff; border: 1px solid var(--line); color: var(--navy); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-sm { padding: 7px 12px; font-size: 12px; }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .total-line { font-size: 18px; font-weight: bold; text-align: right; margin-top: 14px; }
+
+  .banner { padding: 14px 16px; border-radius: 10px; margin-bottom: 18px; font-weight: bold; }
+  .banner.ok { background: var(--success-bg); color: var(--success); border: 1px solid #cfe2b6; }
+  .banner.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid #ecd9ad; }
+  .banner.err { background: var(--danger-bg); color: var(--danger); border: 1px solid #f1c4c4; }
+  .banner.info { background: var(--info-bg); color: var(--info); border: 1px solid #c4d6e8; }
+
+  .summary-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .summary-card .kv { background: #fafafa; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .summary-card .kv .k { font-size: 11px; color: var(--muted); }
+  .summary-card .kv .v { font-size: 15px; font-weight: bold; margin-top: 3px; }
+
+  .token-box {
+    background: var(--amber-light);
+    border: 1px dashed var(--amber);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 12px 0;
+  }
+  .token-box .tok { font-size: 17px; font-weight: bold; letter-spacing: 0.5px; }
+
+  .pulse { display: inline-flex; align-items: center; gap: 8px; color: var(--info); font-weight: bold; }
+  .pulse .pip { width: 10px; height: 10px; border-radius: 50%; background: var(--info); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  textarea.reply {
+    width: 100%; min-height: 140px; border: 1px solid #d8dbe0; border-radius: 8px; padding: 11px; resize: vertical;
+  }
+
+  .pay-breakdown { display: grid; grid-template-columns: 1fr; gap: 0; }
+  .pay-row { display: flex; justify-content: space-between; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+  .pay-row:last-child { border-bottom: none; }
+  .pay-row .label { color: var(--muted); }
+  .pay-row .val { font-weight: bold; }
+  .pay-row .val.green { color: var(--success); }
+  .pay-row.big .val { color: var(--amber); font-size: 20px; }
+
+  .counter-headline {
+    background: var(--amber);
+    color: #fff;
+    border-radius: 12px;
+    padding: 22px;
+    text-align: center;
+    margin: 18px 0;
+  }
+  .counter-headline .small { font-size: 13px; opacity: 0.9; }
+  .counter-headline .big { font-size: 34px; font-weight: bold; margin-top: 4px; }
+
+  .hospital-records {
+    background: #f3f4f6;
+    border: 1px dashed #c2c6cd;
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .hospital-records .tag {
+    display: inline-block; font-size: 11px; font-weight: bold; text-transform: uppercase;
+    background: var(--navy); color: #fff; padding: 3px 9px; border-radius: 6px; letter-spacing: 0.4px;
+    margin-bottom: 10px;
+  }
+  .hospital-records .fee { font-size: 18px; font-weight: bold; }
+  .hospital-records .muted { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  ul.reasons { margin: 8px 0 0; padding-left: 18px; }
+  ul.reasons li { margin-bottom: 4px; }
+
+  /* ---- Spinner ---- */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 3px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; }
+  .spinner.dark { border: 3px solid rgba(26,34,51,0.25); border-top-color: var(--navy); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(245,245,245,0.78); display: none;
+    align-items: center; justify-content: center; z-index: 50;
+  }
+  .overlay.show { display: flex; }
+  .overlay .box { background: #fff; border-radius: 12px; padding: 26px 34px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,0.12); }
+  .overlay .box .spinner { width: 34px; height: 34px; border-width: 4px; }
+  .overlay .box p { margin: 14px 0 0; font-weight: bold; }
+
+  /* ---- Toasts ---- */
+  #toasts { position: fixed; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 10px; z-index: 60; }
+  .toast { background: var(--navy); color: #fff; padding: 12px 16px; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.2); max-width: 340px; font-size: 13px; }
+  .toast.error { background: var(--danger); }
+  .toast.success { background: var(--success); }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 12px 2px; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  @media (max-width: 820px) {
+    .sidebar { display: none; }
+    .sidebar.open { display: block; position: fixed; z-index: 40; height: 100%; box-shadow: 4px 0 24px rgba(0,0,0,0.15); }
+    .grid2, .summary-card { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="badge">Q-DISPATCH</span>
+  <span class="org">Quantum AI Ltd. — Jubilee Hospital</span>
+  <span class="spacer"></span>
+  <button id="logoutBtn">Log out</button>
+</div>
+
+<div class="pipeline" id="pipeline">
+  <div class="stage" data-stage="1">
+    <div class="dot">1</div>
+    <div class="meta"><div class="t">Stage 1</div><div class="n">Packet Assembly</div></div>
+    <div class="conn"></div>
+  </div>
+  <div class="stage" data-stage="2">
+    <div class="dot">2</div>
+    <div class="meta"><div class="t">Stage 2</div><div class="n">Claim Dispatch</div></div>
+    <div class="conn"></div>
+  </div>
+  <div class="stage" data-stage="3">
+    <div class="dot">3</div>
+    <div class="meta"><div class="t">Stage 3</div><div class="n">Inbox Surveillance</div></div>
+    <div class="conn"></div>
+  </div>
+  <div class="stage" data-stage="4">
+    <div class="dot">4</div>
+    <div class="meta"><div class="t">Stage 4</div><div class="n">Counter Clearance</div></div>
+  </div>
+</div>
+
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <button class="new-claim-btn" id="newClaimBtn">+ New Claim</button>
+    <h2>Claims</h2>
+    <div id="claimsList"><div class="empty">Loading…</div></div>
+  </aside>
+
+  <main class="content" id="content"><!-- tab content injected here --></main>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="box">
+    <div class="spinner"></div>
+    <p id="overlayText">Working…</p>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ============================================================================
+// Q-Dispatch front-end — vanilla JS
+// ============================================================================
+
+const state = {
+  claims: [],
+  current: null,      // full claim with items + audit_logs
+  lastPolledAt: null,
+  refreshTimer: null,
+};
+
+// ---- Utilities -------------------------------------------------------------
+
+function inr(n) {
+  if (n === null || n === undefined || isNaN(Number(n))) return '₹0';
+  return '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+}
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .4s'; }, 3600);
+  setTimeout(() => el.remove(), 4100);
+}
+
+function showOverlay(text) {
+  document.getElementById('overlayText').textContent = text || 'Working…';
+  document.getElementById('overlay').classList.add('show');
+}
+function hideOverlay() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, Object.assign({
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  }, opts || {}));
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Unauthorised');
+  }
+  let data = null;
+  try { data = await res.json(); } catch (_) { data = null; }
+  if (!res.ok) {
+    const msg = (data && data.error) ? data.error : ('Request failed (' + res.status + ')');
+    throw new Error(msg);
+  }
+  return data;
+}
+
+// ---- Pipeline strip --------------------------------------------------------
+
+const STAGE_BY_STATUS = {
+  DRAFT:      { active: 1, done: 0 },
+  AUDITED:    { active: 1, done: 1 },
+  DISPATCHED: { active: 3, done: 2 },
+  REPLIED:    { active: 3, done: 3 },
+  CLEARED:    { active: 4, done: 4 },
+};
+
+function renderPipeline(status) {
+  const map = STAGE_BY_STATUS[status] || { active: 1, done: 0 };
+  document.querySelectorAll('#pipeline .stage').forEach((el) => {
+    const s = Number(el.dataset.stage);
+    el.classList.remove('active', 'done');
+    if (s <= map.done) el.classList.add('done');
+    else if (s === map.active) el.classList.add('active');
+  });
+}
+
+// ---- Sidebar ---------------------------------------------------------------
+
+async function loadClaims() {
+  try {
+    state.claims = await api('/api/claims');
+  } catch (e) {
+    toast(e.message, 'error');
+    state.claims = [];
+  }
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const list = document.getElementById('claimsList');
+  if (!state.claims.length) {
+    list.innerHTML = '<div class="empty">No claims yet.</div>';
+    return;
+  }
+  list.innerHTML = state.claims.map((c) => {
+    const sel = state.current && state.current.id === c.id ? ' selected' : '';
+    return `<div class="claim-row${sel}" data-id="${c.id}">
+      <div class="name">${esc(c.patient_name)}</div>
+      <div class="sub">
+        <span class="amt">${inr(c.total_amount)}</span>
+        <span class="status-badge s-${c.status}">${c.status}</span>
+      </div>
+      <div class="date">${esc(c.insurer)} · ${fmtDateTime(c.created_at)}</div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.claim-row').forEach((row) => {
+    row.addEventListener('click', () => selectClaim(row.dataset.id));
+  });
+}
+
+// ---- Claim selection / routing --------------------------------------------
+
+function stopRefresh() {
+  if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
+}
+
+function maybeStartRefresh() {
+  stopRefresh();
+  if (state.current && state.current.status === 'DISPATCHED') {
+    state.refreshTimer = setInterval(async () => {
+      try {
+        const fresh = await api('/api/claims/' + state.current.id);
+        if (fresh.status !== state.current.status) {
+          state.current = fresh;
+          await loadClaims();
+          renderCurrent();
+          if (fresh.status === 'REPLIED') toast('TPA reply received and parsed.', 'success');
+        } else {
+          const h = await api('/api/health');
+          state.lastPolledAt = h.last_polled_at;
+          const lp = document.getElementById('lastPolled');
+          if (lp) lp.textContent = fmtDateTime(state.lastPolledAt);
+        }
+      } catch (_) { /* silent during background poll */ }
+    }, 30000);
+  }
+}
+
+async function selectClaim(id) {
+  try {
+    state.current = await api('/api/claims/' + id);
+    renderCurrent();
+    renderSidebar();
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+function newClaim() {
+  state.current = null;
+  stopRefresh();
+  renderPipeline('DRAFT');
+  renderNewClaimTab(null);
+  renderSidebar();
+}
+
+function renderCurrent() {
+  if (!state.current) { newClaim(); return; }
+  renderPipeline(state.current.status);
+  maybeStartRefresh();
+  const s = state.current.status;
+  if (s === 'DRAFT') renderNewClaimTab(state.current);
+  else if (s === 'AUDITED') renderAuditTab();
+  else if (s === 'DISPATCHED' || s === 'REPLIED') renderStatusTab();
+  else if (s === 'CLEARED') renderClearanceTab();
+}
+
+// ---- TAB 1: New claim ------------------------------------------------------
+
+const DEMO_ITEMS = [
+  { description: 'Laparoscopic cholecystectomy', procedure_code: 'CPT 47562', quantity: 1, unit: 'procedure', amount: 42000 },
+  { description: 'General anaesthesia', procedure_code: 'CPT 00790', quantity: 1, unit: 'procedure', amount: 12500 },
+  { description: 'Room charges – General ward', procedure_code: 'HOSP-RMG', quantity: 6, unit: 'nights', amount: 9000 },
+  { description: 'Medicine', procedure_code: '', quantity: '', unit: '', amount: 4200 },
+  { description: 'Surgical kit (laparoscopic)', procedure_code: 'SKIT-LAP', quantity: '', unit: '', amount: 6800 },
+  { description: 'IV fluids – Normal saline 500ml', procedure_code: 'DRUG-NS5', quantity: 8, unit: 'units', amount: 1600 },
+  { description: 'Lab – LFT panel', procedure_code: 'LAB-LFT', quantity: 2, unit: 'tests', amount: 2400 },
+  { description: 'Ultrasound abdomen', procedure_code: 'RAD-US', quantity: 1, unit: 'scan', amount: 1800 },
+  { description: 'Nursing charges', procedure_code: 'NURS-GW', quantity: 6, unit: 'days', amount: 1200 },
+];
+
+const DEMO_PATIENT = {
+  patient_name: 'Ramesh Nair', patient_dob: '1978-04-12', policy_number: 'SH-2024-77821',
+  insurer: 'Star Health', icd_code: 'K80.2',
+  diagnosis: 'Cholelithiasis — Laparoscopic Cholecystectomy',
+  doctor_name: 'Dr. S. Menon MBBS MS', admission_date: '2025-06-12', discharge_date: '2025-06-18',
+};
+
+function renderNewClaimTab(claim, errorMsg) {
+  const savedDraft = !!(claim && claim.id);
+  const p = claim || DEMO_PATIENT;
+  let items;
+  if (claim) {
+    items = claim.items.map((i) => ({
+      description: i.description, procedure_code: i.procedure_code || '',
+      quantity: i.quantity == null ? '' : i.quantity, unit: i.unit || '', amount: i.amount,
+    }));
+  } else {
+    items = DEMO_ITEMS.slice();
+  }
+
+  const insurers = ['Star Health', 'Care Health', 'HDFC Ergo', 'New India'];
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    ${errorMsg ? `<div class="banner err">AI audit could not run: ${esc(errorMsg)}</div>` : ''}
+    ${savedDraft && !errorMsg ? `<div class="banner info">Claim saved as draft — re-run the AI audit below.</div>` : ''}
+    <div class="card">
+      <div class="section-label">A · Patient &amp; Policy Details</div>
+      <div class="grid2">
+        <div class="field"><label>Patient name</label><input id="f_patient_name" value="${esc(p.patient_name||'')}" /></div>
+        <div class="field"><label>Date of birth</label><input id="f_patient_dob" type="date" value="${esc(p.patient_dob||'')}" /></div>
+        <div class="field"><label>Policy number</label><input id="f_policy_number" value="${esc(p.policy_number||'')}" /></div>
+        <div class="field"><label>Insurer</label><select id="f_insurer">
+          ${insurers.map((i) => `<option value="${esc(i)}"${(p.insurer===i)?' selected':''}>${esc(i)}</option>`).join('')}
+        </select></div>
+        <div class="field"><label>ICD-10 code</label><input id="f_icd_code" placeholder="e.g. K80.2" value="${esc(p.icd_code||'')}" /></div>
+        <div class="field"><label>Diagnosis description</label><input id="f_diagnosis" value="${esc(p.diagnosis||'')}" /></div>
+        <div class="field"><label>Doctor name</label><input id="f_doctor_name" value="${esc(p.doctor_name||'')}" /></div>
+        <div class="field"><label>Admission date</label><input id="f_admission_date" type="date" value="${esc(p.admission_date||'')}" /></div>
+        <div class="field"><label>Discharge date</label><input id="f_discharge_date" type="date" value="${esc(p.discharge_date||'')}" /></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="section-label">B · Itemised Bill</div>
+      <table class="bill" id="billTable">
+        <thead>
+          <tr>
+            <th style="width:34px;">#</th>
+            <th>Description</th>
+            <th style="width:130px;">Procedure code</th>
+            <th style="width:70px;">Qty</th>
+            <th style="width:100px;">Unit</th>
+            <th style="width:120px;">Amount (₹)</th>
+            <th style="width:40px;"></th>
+          </tr>
+        </thead>
+        <tbody id="billBody"></tbody>
+      </table>
+      <div class="toolbar" style="margin-top:12px;">
+        <button class="btn btn-ghost btn-sm" id="addRowBtn">+ Add Row</button>
+        <span class="spacer" style="flex:1;"></span>
+        <div class="total-line">Total: <span id="billTotal">₹0</span></div>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <button class="btn btn-amber" id="auditBtn">${savedDraft ? 'Re-run AI Audit →' : 'Save &amp; Run AI Audit →'}</button>
+      <span class="hint">The AI auditor validates every line item before dispatch (takes ~3–5s). Requires a valid ANTHROPIC_API_KEY on the server.</span>
+    </div>
+  `;
+
+  const body = document.getElementById('billBody');
+  items.forEach((it) => body.appendChild(buildRow(it)));
+  recalcTotal();
+
+  document.getElementById('addRowBtn').addEventListener('click', () => {
+    body.appendChild(buildRow({ description: '', procedure_code: '', quantity: '', unit: '', amount: '' }));
+    recalcTotal();
+  });
+  document.getElementById('auditBtn').addEventListener('click', () => {
+    if (savedDraft) runAudit(claim.id);
+    else submitAndAudit();
+  });
+}
+
+function buildRow(it) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="rownum"></td>
+    <td><input class="c-desc" value="${esc(it.description)}" placeholder="Description" /></td>
+    <td><input class="c-code" value="${esc(it.procedure_code)}" placeholder="Code" /></td>
+    <td class="num"><input class="c-qty" value="${esc(it.quantity)}" placeholder="—" /></td>
+    <td><input class="c-unit" value="${esc(it.unit)}" placeholder="unit" /></td>
+    <td class="num"><input class="c-amt" value="${esc(it.amount)}" placeholder="0" /></td>
+    <td><button class="btn btn-ghost btn-sm rm" title="Remove">✕</button></td>
+  `;
+  tr.querySelector('.c-amt').addEventListener('input', recalcTotal);
+  tr.querySelector('.rm').addEventListener('click', () => { tr.remove(); recalcTotal(); });
+  return tr;
+}
+
+function recalcTotal() {
+  let total = 0;
+  document.querySelectorAll('#billBody tr').forEach((tr, idx) => {
+    tr.querySelector('.rownum').textContent = idx + 1;
+    const amt = parseFloat(tr.querySelector('.c-amt').value);
+    if (!isNaN(amt)) total += amt;
+  });
+  const el = document.getElementById('billTotal');
+  if (el) el.textContent = inr(total);
+  return total;
+}
+
+function collectForm() {
+  const items = [];
+  document.querySelectorAll('#billBody tr').forEach((tr) => {
+    const description = tr.querySelector('.c-desc').value.trim();
+    const amount = parseFloat(tr.querySelector('.c-amt').value);
+    if (!description && isNaN(amount)) return; // skip blank rows
+    const qtyRaw = tr.querySelector('.c-qty').value.trim();
+    items.push({
+      description,
+      procedure_code: tr.querySelector('.c-code').value.trim() || null,
+      quantity: qtyRaw === '' ? null : Number(qtyRaw),
+      unit: tr.querySelector('.c-unit').value.trim() || null,
+      amount: isNaN(amount) ? 0 : amount,
+    });
+  });
+  return {
+    patient_name: document.getElementById('f_patient_name').value.trim(),
+    patient_dob: document.getElementById('f_patient_dob').value || null,
+    policy_number: document.getElementById('f_policy_number').value.trim(),
+    insurer: document.getElementById('f_insurer').value,
+    icd_code: document.getElementById('f_icd_code').value.trim(),
+    diagnosis: document.getElementById('f_diagnosis').value.trim(),
+    doctor_name: document.getElementById('f_doctor_name').value.trim(),
+    admission_date: document.getElementById('f_admission_date').value || '',
+    discharge_date: document.getElementById('f_discharge_date').value || '',
+    total_amount: recalcTotal(),
+    items,
+  };
+}
+
+async function submitAndAudit() {
+  const payload = collectForm();
+  if (!payload.patient_name) { toast('Patient name is required.', 'error'); return; }
+  if (!payload.policy_number) { toast('Policy number is required.', 'error'); return; }
+  if (!payload.icd_code) { toast('ICD-10 code is required.', 'error'); return; }
+  if (!payload.diagnosis) { toast('Diagnosis is required.', 'error'); return; }
+  if (!payload.doctor_name) { toast('Doctor name is required.', 'error'); return; }
+  if (!payload.admission_date) { toast('Admission date is required.', 'error'); return; }
+  if (!payload.discharge_date) { toast('Discharge date is required.', 'error'); return; }
+  if (!payload.items.length) { toast('Add at least one bill item.', 'error'); return; }
+
+  showOverlay('Saving claim…');
+  let claim;
+  try {
+    claim = await api('/api/claims', { method: 'POST', body: JSON.stringify(payload) });
+  } catch (e) {
+    hideOverlay();
+    toast('Could not save claim: ' + e.message, 'error');
+    return;
+  }
+  // Claim is persisted — keep it as the current selection so a failed audit
+  // never loses the work, and a retry re-audits this draft (no duplicate).
+  state.current = claim;
+  await loadClaims();
+  await runAudit(claim.id);
+}
+
+async function runAudit(claimId) {
+  showOverlay('Running AI pre-audit…');
+  try {
+    await api('/api/audit/' + claimId, { method: 'POST' });
+    state.current = await api('/api/claims/' + claimId);
+    await loadClaims();
+    renderCurrent();
+    toast('AI audit complete.', 'success');
+  } catch (e) {
+    // Re-render the saved draft with a persistent, actionable error banner.
+    state.current = await api('/api/claims/' + claimId);
+    await loadClaims();
+    renderSidebar();
+    renderPipeline('DRAFT');
+    renderNewClaimTab(state.current, e.message);
+    toast('AI audit failed — see the banner above.', 'error');
+  } finally {
+    hideOverlay();
+  }
+}
+
+// ---- TAB 2: Audit results --------------------------------------------------
+
+function latestAudit() {
+  const logs = (state.current.audit_logs || []).filter((l) => l.stage === 'AUDIT');
+  if (!logs.length) return null;
+  try { return JSON.parse(logs[logs.length - 1].payload); } catch (_) { return null; }
+}
+
+function renderAuditTab() {
+  const c = state.current;
+  const audit = latestAudit();
+  const items = c.items || [];
+  const errors = items.filter((i) => i.audit_status === 'ERROR').length;
+  const warns = items.filter((i) => i.audit_status === 'WARN').length;
+
+  let banner, dispatchBtn;
+  if (errors > 0) {
+    banner = `<div class="banner err">${errors} error(s) found — fix before dispatch is allowed.</div>`;
+    dispatchBtn = `<button class="btn btn-primary" id="dispatchBtn" disabled title="Resolve all ERROR items before dispatch">Dispatch blocked — errors present</button>`;
+  } else if (warns > 0) {
+    banner = `<div class="banner warn">${warns} warning(s) found — review before dispatch.</div>`;
+    dispatchBtn = `<button class="btn btn-amber" id="dispatchBtn">Dispatch with warnings →</button>`;
+  } else {
+    banner = `<div class="banner ok">AI audit passed — ${items.length} items validated.</div>`;
+    dispatchBtn = `<button class="btn btn-success" id="dispatchBtn">Dispatch claim →</button>`;
+  }
+
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <div class="card">
+      <div class="summary-card">
+        <div class="kv"><div class="k">Patient</div><div class="v">${esc(c.patient_name)}</div></div>
+        <div class="kv"><div class="k">Policy</div><div class="v">${esc(c.policy_number)}</div></div>
+        <div class="kv"><div class="k">Insurer</div><div class="v">${esc(c.insurer)}</div></div>
+        <div class="kv"><div class="k">Total</div><div class="v">${inr(c.total_amount)}</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>AI Pre-Audit Result</h3>
+      ${banner}
+      <table class="bill">
+        <thead>
+          <tr><th style="width:34px;">#</th><th>Description</th><th>Code</th><th>Qty</th><th>Amount</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          ${items.map((i) => {
+            const st = i.audit_status || 'OK';
+            const qty = i.quantity == null ? '—' : (i.quantity + (i.unit ? ' ' + i.unit : ''));
+            return `<tr class="row-${st}">
+              <td>${i.line_number}</td>
+              <td>${esc(i.description)}${i.audit_note ? `<div class="audit-note ${st}">${esc(i.audit_note)}</div>` : ''}</td>
+              <td>${esc(i.procedure_code || '—')}</td>
+              <td>${esc(qty)}</td>
+              <td style="text-align:right;">${inr(i.amount)}</td>
+              <td><span class="status-badge ${st==='OK'?'s-REPLIED':st==='WARN'?'s-AUDITED':'s-DRAFT'}" style="${st==='ERROR'?'background:var(--danger);color:#fff;':''}">${st}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      ${audit && audit.summary ? `<p style="margin-top:14px;color:#374151;">${esc(audit.summary)}</p>` : ''}
+    </div>
+
+    <div class="toolbar">
+      ${dispatchBtn}
+      <button class="btn btn-ghost" id="backToEditBtn">← Edit bill</button>
+    </div>
+    <div id="dispatchResult"></div>
+  `;
+
+  const db = document.getElementById('dispatchBtn');
+  if (db && !db.disabled) db.addEventListener('click', dispatchClaim);
+  document.getElementById('backToEditBtn').addEventListener('click', () => {
+    // Re-edit: load draft form pre-filled from current claim.
+    renderNewClaimTab(state.current);
+  });
+}
+
+async function dispatchClaim() {
+  showOverlay('Dispatching claim to insurer…');
+  try {
+    const result = await api('/api/dispatch/' + state.current.id, { method: 'POST' });
+    state.current = await api('/api/claims/' + state.current.id);
+    await loadClaims();
+    document.getElementById('dispatchResult').innerHTML = `
+      <div class="card">
+        <div class="banner info">Claim dispatched to ${esc(result.dispatch_email)}.</div>
+        <div class="token-box">
+          <div><div class="k" style="font-size:11px;color:var(--muted);">Tracking token</div>
+          <div class="tok">${esc(result.token)}</div></div>
+          <button class="btn btn-ghost btn-sm" onclick="copyToken('${esc(result.token)}')">Copy</button>
+        </div>
+        <button class="btn btn-amber" id="goStatusBtn">View claim status →</button>
+      </div>`;
+    document.getElementById('goStatusBtn').addEventListener('click', renderCurrent);
+    renderPipeline('DISPATCHED');
+    toast('Claim dispatched. Inbox surveillance armed.', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    hideOverlay();
+  }
+}
+
+function copyToken(tok) {
+  navigator.clipboard.writeText(tok).then(
+    () => toast('Tracking token copied.', 'success'),
+    () => toast('Copy failed — select manually.', 'error')
+  );
+}
+
+// ---- TAB 3: Claim status ---------------------------------------------------
+
+function renderStatusTab() {
+  const c = state.current;
+  const content = document.getElementById('content');
+
+  let body;
+  if (c.status === 'DISPATCHED') {
+    body = `
+      <div class="card">
+        <span class="pulse"><span class="pip"></span> Awaiting TPA reply…</span>
+        <p class="hint">Inbox surveillance polls the reply inbox every 90 seconds and auto-matches your tracking token.</p>
+      </div>
+      <div class="card">
+        <h3>Simulate TPA Reply <span class="hint" style="font-weight:normal;">(demo / testing)</span></h3>
+        <p class="hint">Paste a raw insurer reply email below to parse it instantly without waiting for a real email.</p>
+        <textarea class="reply" id="replyBody" placeholder="Paste insurer reply email body here…">${esc(SAMPLE_REPLY(c))}</textarea>
+        <div class="toolbar" style="margin-top:12px;">
+          <button class="btn btn-amber" id="parseReplyBtn">Parse Reply →</button>
+        </div>
+      </div>`;
+  } else {
+    body = renderDecisionCard(c);
+  }
+
+  content.innerHTML = `
+    <div class="card">
+      <div class="toolbar" style="justify-content:space-between;">
+        <div>
+          <div class="k" style="font-size:11px;color:var(--muted);">Tracking token</div>
+          <div class="token-box" style="margin:6px 0 0;">
+            <span class="tok">${esc(c.tracking_token || '—')}</span>
+            <button class="btn btn-ghost btn-sm" onclick="copyToken('${esc(c.tracking_token||'')}')">Copy</button>
+          </div>
+        </div>
+        <span class="status-badge s-${c.status}" style="align-self:flex-start;">${c.status}</span>
+      </div>
+      <div class="summary-card" style="margin-top:16px;">
+        <div class="kv"><div class="k">Insurer</div><div class="v">${esc(c.insurer)}</div></div>
+        <div class="kv"><div class="k">Dispatched to</div><div class="v" style="font-size:13px;">${esc(c.dispatch_email || '—')}</div></div>
+        <div class="kv"><div class="k">Dispatched at</div><div class="v" style="font-size:13px;">${fmtDateTime(c.dispatched_at)}</div></div>
+        <div class="kv"><div class="k">Last inbox poll</div><div class="v" style="font-size:13px;" id="lastPolled">${fmtDateTime(state.lastPolledAt)}</div></div>
+      </div>
+    </div>
+    ${body}
+  `;
+
+  if (c.status === 'DISPATCHED') {
+    document.getElementById('parseReplyBtn').addEventListener('click', parseReply);
+    refreshHealthPoll();
+  } else {
+    const clearBtn = document.getElementById('clearBtn');
+    if (clearBtn && !clearBtn.disabled) clearBtn.addEventListener('click', clearToCounter);
+  }
+}
+
+async function refreshHealthPoll() {
+  try {
+    const h = await api('/api/health');
+    state.lastPolledAt = h.last_polled_at;
+    const lp = document.getElementById('lastPolled');
+    if (lp) lp.textContent = fmtDateTime(state.lastPolledAt);
+  } catch (_) { /* ignore */ }
+}
+
+function SAMPLE_REPLY(c) {
+  const token = c.tracking_token || '';
+  const approved = Math.max(0, Math.round((c.total_amount || 0) * 0.945));
+  const deduction = (c.total_amount || 0) - approved;
+  return `Dear Jubilee Hospital,
+
+Re: Cashless claim — ${c.patient_name}, Policy ${c.policy_number}
+Tracking reference: ${token}
+
+We are pleased to inform you that the above claim has been APPROVED on a partial basis.
+
+Authorisation reference: STAR/AUTH/2025/${(token.slice(-4) || '0000')}
+Approved amount: INR ${approved.toLocaleString('en-IN')}
+Deducted amount: INR ${deduction.toLocaleString('en-IN')}
+
+Deductions applied:
+- Non-payable consumables (surgical kit) not itemised with quantity
+- Proportionate deduction on pharmacy as per policy sub-limits
+
+No further documents are required at this stage.
+
+Regards,
+Claims Processing Team`;
+}
+
+function renderDecisionCard(c) {
+  const dec = c.tpa_decision || 'MORE_INFO';
+  let reasons = [];
+  let docs = [];
+  try { reasons = JSON.parse(c.deduction_reasons || '[]'); } catch (_) {}
+  try { docs = JSON.parse(c.documents_requested || '[]'); } catch (_) {}
+
+  const cls = dec === 'APPROVED' ? 'ok' : dec === 'PARTIAL' ? 'warn' : dec === 'REJECTED' ? 'err' : 'info';
+  const canClear = dec === 'APPROVED' || dec === 'PARTIAL';
+
+  return `
+    <div class="card">
+      <div class="banner ${cls}">TPA decision: ${esc(dec)}</div>
+      <div class="summary-card">
+        <div class="kv"><div class="k">Approval ref</div><div class="v" style="font-size:13px;">${esc(c.approval_ref || '—')}</div></div>
+        <div class="kv"><div class="k">Approved amount</div><div class="v">${c.approved_amount!=null?inr(c.approved_amount):'—'}</div></div>
+        <div class="kv"><div class="k">Deduction</div><div class="v">${c.deduction_amount!=null?inr(c.deduction_amount):'—'}</div></div>
+        <div class="kv"><div class="k">Total bill</div><div class="v">${inr(c.total_amount)}</div></div>
+      </div>
+      ${reasons.length ? `<div style="margin-top:14px;"><strong>Deduction reasons</strong><ul class="reasons">${reasons.map((r)=>`<li>${esc(r)}</li>`).join('')}</ul></div>` : ''}
+      ${docs.length ? `<div style="margin-top:14px;"><strong>Documents requested</strong><ul class="reasons">${docs.map((d)=>`<li>${esc(d)}</li>`).join('')}</ul></div>` : ''}
+      <div class="toolbar" style="margin-top:18px;">
+        <button class="btn btn-success" id="clearBtn" ${canClear?'':'disabled title="Cannot clear a REJECTED or MORE_INFO claim"'}>Clear to Counter →</button>
+        ${!canClear ? '<span class="hint">This claim cannot proceed to counter clearance.</span>' : ''}
+      </div>
+    </div>`;
+}
+
+async function parseReply() {
+  const body = document.getElementById('replyBody').value.trim();
+  if (!body) { toast('Paste the reply email body first.', 'error'); return; }
+  showOverlay('AI is reading the insurer reply…');
+  try {
+    await api('/api/simulate-reply/' + state.current.id, { method: 'POST', body: JSON.stringify({ email_body: body }) });
+    state.current = await api('/api/claims/' + state.current.id);
+    await loadClaims();
+    renderCurrent();
+    toast('Reply parsed.', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    hideOverlay();
+  }
+}
+
+async function clearToCounter() {
+  showOverlay('Calculating counter clearance…');
+  try {
+    await api('/api/clear/' + state.current.id, { method: 'POST' });
+    state.current = await api('/api/claims/' + state.current.id);
+    await loadClaims();
+    renderCurrent();
+    toast('Patient cleared for counter.', 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    hideOverlay();
+  }
+}
+
+// ---- TAB 4: Counter clearance ---------------------------------------------
+
+function clearanceData() {
+  const logs = (state.current.audit_logs || []).filter((l) => l.stage === 'CLEARANCE');
+  if (!logs.length) return null;
+  try { return JSON.parse(logs[logs.length - 1].payload); } catch (_) { return null; }
+}
+
+function renderClearanceTab() {
+  const c = state.current;
+  const cl = clearanceData() || {};
+  const approved = c.approved_amount || 0;
+  const copay = c.copay_amount != null ? c.copay_amount : (c.total_amount - approved);
+  const fee = cl.qai_fee != null ? cl.qai_fee : Math.round(approved * 0.005 * 100) / 100;
+  const feeBasis = cl.fee_basis || `0.5% of ${inr(approved)} approved`;
+  const invoiceMonth = cl.invoice_month || '—';
+
+  const content = document.getElementById('content');
+  content.innerHTML = `
+    <h2 style="margin:0 0 4px;">${esc(c.patient_name)}</h2>
+    <div class="banner ok">Patient cleared for discharge.</div>
+
+    <div class="card">
+      <h3>Payment breakdown</h3>
+      <div class="pay-breakdown">
+        <div class="pay-row"><span class="label">Total bill</span><span class="val">${inr(c.total_amount)}</span></div>
+        <div class="pay-row"><span class="label">Insurer pays</span><span class="val green">${inr(approved)}</span></div>
+        <div class="pay-row big"><span class="label">Patient pays</span><span class="val">${inr(copay)}</span></div>
+        <div class="pay-row"><span class="label">Approval ref</span><span class="val" style="font-size:13px;">${esc(c.approval_ref || '—')}</span></div>
+      </div>
+    </div>
+
+    <div class="counter-headline">
+      <div class="small">Tell the patient at the counter</div>
+      <div class="big">Patient pays ${inr(copay)}</div>
+    </div>
+
+    <div class="hospital-records">
+      <span class="tag">For hospital records</span>
+      <div class="fee">Q-Dispatch service fee: ${inr(fee)}</div>
+      <div class="muted">${esc(feeBasis)}</div>
+      <div class="muted">Logged to monthly invoice — patient is <strong>not</strong> charged this fee. It is deducted from the insurer reimbursement.</div>
+      <div class="muted">Invoice month: ${esc(invoiceMonth)}</div>
+    </div>
+
+    <div class="toolbar" style="margin-top:18px;">
+      <button class="btn btn-amber" id="newPatientBtn">New Patient</button>
+    </div>
+  `;
+  document.getElementById('newPatientBtn').addEventListener('click', newClaim);
+}
+
+// ---- Boot ------------------------------------------------------------------
+
+document.getElementById('newClaimBtn').addEventListener('click', newClaim);
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+  } catch (_) {}
+  window.location.href = '/login';
+});
+
+(async function init() {
+  await loadClaims();
+  try {
+    const h = await api('/api/health');
+    state.lastPolledAt = h.last_polled_at;
+  } catch (_) {}
+  // Open the most recent claim if one exists, else show the new-claim form.
+  if (state.claims.length) {
+    await selectClaim(state.claims[0].id);
+  } else {
+    newClaim();
+  }
+})();
+</script>
+</body>
+</html>
