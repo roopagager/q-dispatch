@@ -74,6 +74,7 @@ export function initDb(): void {
       approval_ref        TEXT,
       copay_amount        REAL,
       cleared_at          TEXT,
+      documents           TEXT,
       created_at          TEXT DEFAULT (datetime('now')),
       updated_at          TEXT DEFAULT (datetime('now'))
     );
@@ -126,6 +127,15 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_ledger_claim ON ledger(claim_id);
     CREATE INDEX IF NOT EXISTS idx_claims_status ON claims(status);
   `);
+
+  // Migration: add the `documents` column to pre-existing databases that were
+  // created before document-completeness checks existed.
+  const cols = db.prepare(`PRAGMA table_info(claims)`).all() as Array<{
+    name: string;
+  }>;
+  if (!cols.some((c) => c.name === 'documents')) {
+    db.exec(`ALTER TABLE claims ADD COLUMN documents TEXT`);
+  }
 }
 
 // ----------------------------------------------------------------------------
@@ -171,11 +181,11 @@ export function createClaim(input: NewClaimInput): Claim {
     INSERT INTO claims (
       id, patient_name, patient_dob, policy_number, insurer, insurer_code,
       icd_code, diagnosis, doctor_name, admission_date, discharge_date,
-      total_amount, status
+      total_amount, status, documents
     ) VALUES (
       @id, @patient_name, @patient_dob, @policy_number, @insurer, @insurer_code,
       @icd_code, @diagnosis, @doctor_name, @admission_date, @discharge_date,
-      @total_amount, 'DRAFT'
+      @total_amount, 'DRAFT', @documents
     )
   `);
 
@@ -201,6 +211,7 @@ export function createClaim(input: NewClaimInput): Claim {
       admission_date: input.admission_date,
       discharge_date: input.discharge_date,
       total_amount: input.total_amount,
+      documents: JSON.stringify(input.documents ?? []),
     });
 
     input.items.forEach((item, idx) => {
@@ -256,6 +267,22 @@ export function listDispatchedClaims(): Claim[] {
   return db
     .prepare(`SELECT * FROM claims WHERE status = 'DISPATCHED'`)
     .all() as Claim[];
+}
+
+export function updateClaimDocuments(id: string, documents: string[]): void {
+  db.prepare(
+    `UPDATE claims SET documents = ?, updated_at = datetime('now') WHERE id = ?`
+  ).run(JSON.stringify(documents), id);
+}
+
+export function getClaimDocuments(claim: Claim): string[] {
+  if (!claim.documents) return [];
+  try {
+    const parsed = JSON.parse(claim.documents);
+    return Array.isArray(parsed) ? parsed.map((x) => String(x)) : [];
+  } catch {
+    return [];
+  }
 }
 
 export function updateClaimStatus(id: string, status: ClaimStatus): void {

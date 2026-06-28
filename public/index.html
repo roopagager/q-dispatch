@@ -186,6 +186,16 @@
   .audit-note.WARN { color: var(--warn); }
   .audit-note.ERROR { color: var(--danger); }
 
+  .docgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+  .docitem { display: flex; align-items: center; gap: 9px; font-size: 13px; padding: 7px 0; cursor: pointer; }
+  .docitem input { width: 16px; height: 16px; flex-shrink: 0; }
+  .doc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .doc-row:last-child { border-bottom: none; }
+  .doc-badge { font-size: 11px; font-weight: bold; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .doc-ok { background: var(--success-bg); color: var(--success); }
+  .doc-missing { background: var(--danger-bg); color: var(--danger); }
+  .doc-optional { background: #eee; color: #777; }
+
   .btn {
     border: none; border-radius: 8px; padding: 12px 20px; font-weight: bold; font-size: 14px;
   }
@@ -551,9 +561,33 @@ const DEMO_PATIENT = {
   doctor_name: 'Dr. S. Menon MBBS MS', admission_date: '2025-06-12', discharge_date: '2025-06-18',
 };
 
+const DOC_CATALOG = [
+  { key: 'PRE_AUTH', label: 'Pre-authorisation form' },
+  { key: 'DISCHARGE', label: 'Discharge summary' },
+  { key: 'ITEMISED_BILL', label: 'Itemised hospital bill' },
+  { key: 'ID_POLICY', label: 'Patient ID & policy copy' },
+  { key: 'PHARMACY_BILL', label: 'Itemised pharmacy bill' },
+  { key: 'INVESTIGATION', label: 'Investigation / diagnostic reports' },
+  { key: 'OPERATIVE_NOTES', label: 'Operative / procedure notes' },
+  { key: 'IMPLANT_INVOICE', label: 'Implant invoice & sticker' },
+];
+const DEFAULT_DOCS = ['PRE_AUTH', 'DISCHARGE', 'ITEMISED_BILL', 'ID_POLICY'];
+
+function parseDocs(claim) {
+  if (claim && claim.documents) {
+    try {
+      const d = JSON.parse(claim.documents);
+      if (Array.isArray(d)) return d.map((x) => String(x));
+    } catch (_) {}
+    return [];
+  }
+  return claim ? [] : DEFAULT_DOCS.slice();
+}
+
 function renderNewClaimTab(claim, errorMsg) {
   const savedDraft = !!(claim && claim.id);
   const p = claim || DEMO_PATIENT;
+  const attachedDocs = parseDocs(claim);
   let items;
   if (claim) {
     items = claim.items.map((i) => ({
@@ -609,9 +643,19 @@ function renderNewClaimTab(claim, errorMsg) {
       </div>
     </div>
 
+    <div class="card">
+      <div class="section-label">C · Supporting Documents</div>
+      <p class="hint" style="margin-top:0;">Tick the documents attached to this claim. The agent checks completeness and blocks dispatch if a required document is missing.</p>
+      <div class="docgrid">
+        ${DOC_CATALOG.map((d) => `
+          <label class="docitem"><input type="checkbox" class="docchk" value="${d.key}" ${attachedDocs.includes(d.key) ? 'checked' : ''}/> ${esc(d.label)}</label>
+        `).join('')}
+      </div>
+    </div>
+
     <div class="toolbar">
       <button class="btn btn-amber" id="auditBtn">${savedDraft ? 'Re-run AI Audit →' : 'Save &amp; Run AI Audit →'}</button>
-      <span class="hint">The AI auditor validates every line item before dispatch (takes ~3–5s). Requires a valid ANTHROPIC_API_KEY on the server.</span>
+      <span class="hint">The AI auditor validates every line item <em>and the document pack</em> before dispatch (~3–5s). Requires a valid ANTHROPIC_API_KEY on the server.</span>
     </div>
   `;
 
@@ -684,7 +728,12 @@ function collectForm() {
     discharge_date: document.getElementById('f_discharge_date').value || '',
     total_amount: recalcTotal(),
     items,
+    documents: collectDocs(),
   };
+}
+
+function collectDocs() {
+  return [...document.querySelectorAll('.docchk:checked')].map((c) => c.value);
 }
 
 async function submitAndAudit() {
@@ -716,8 +765,14 @@ async function submitAndAudit() {
 
 async function runAudit(claimId) {
   showOverlay('Running AI pre-audit…');
+  // If the document checklist is on screen, send the current selection so the
+  // completeness check reflects any documents the clerk just attached.
+  const docEls = document.querySelectorAll('.docchk');
+  const auditBody = docEls.length
+    ? JSON.stringify({ documents: collectDocs() })
+    : undefined;
   try {
-    await api('/api/audit/' + claimId, { method: 'POST' });
+    await api('/api/audit/' + claimId, { method: 'POST', body: auditBody });
     state.current = await api('/api/claims/' + claimId);
     await loadClaims();
     renderCurrent();
@@ -750,17 +805,40 @@ function renderAuditTab() {
   const errors = items.filter((i) => i.audit_status === 'ERROR').length;
   const warns = items.filter((i) => i.audit_status === 'WARN').length;
 
+  const docs = audit && Array.isArray(audit.documents) ? audit.documents : [];
+  const missingDocs = audit && Array.isArray(audit.missing_required) ? audit.missing_required : [];
+  const docsComplete = audit ? audit.docs_complete !== false : true;
+
   let banner, dispatchBtn;
   if (errors > 0) {
     banner = `<div class="banner err">${errors} error(s) found — fix before dispatch is allowed.</div>`;
     dispatchBtn = `<button class="btn btn-primary" id="dispatchBtn" disabled title="Resolve all ERROR items before dispatch">Dispatch blocked — errors present</button>`;
+  } else if (!docsComplete) {
+    banner = `<div class="banner err">${missingDocs.length} required document(s) missing — attach before dispatch.</div>`;
+    dispatchBtn = `<button class="btn btn-primary" id="dispatchBtn" disabled title="Attach the missing documents and re-audit">Dispatch blocked — documents missing</button>`;
   } else if (warns > 0) {
     banner = `<div class="banner warn">${warns} warning(s) found — review before dispatch.</div>`;
     dispatchBtn = `<button class="btn btn-amber" id="dispatchBtn">Dispatch with warnings →</button>`;
   } else {
-    banner = `<div class="banner ok">AI audit passed — ${items.length} items validated.</div>`;
+    banner = `<div class="banner ok">AI audit passed — ${items.length} items validated, documents complete.</div>`;
     dispatchBtn = `<button class="btn btn-success" id="dispatchBtn">Dispatch claim →</button>`;
   }
+
+  const docsPanel = docs.length ? `
+    <div class="card">
+      <h3>Document Completeness</h3>
+      ${docsComplete
+        ? '<div class="banner ok">All required documents are attached.</div>'
+        : `<div class="banner err">Missing required: ${missingDocs.map(esc).join(', ')} — attach and re-audit before dispatch.</div>`}
+      ${docs.map((d) => {
+        let badge;
+        if (d.status === 'OK') badge = '<span class="doc-badge doc-ok">✓ Attached</span>';
+        else if (d.status === 'MISSING') badge = '<span class="doc-badge doc-missing">✗ Missing (required)</span>';
+        else badge = '<span class="doc-badge doc-optional">Optional</span>';
+        return `<div class="doc-row"><span>${esc(d.label)}${d.required ? ' <strong style="color:var(--danger);">*</strong>' : ''}</span>${badge}</div>`;
+      }).join('')}
+      <p class="hint" style="margin-top:10px;">* required for this claim — the agent infers required documents from the bill (e.g. surgery → operative notes, implant → implant invoice).</p>
+    </div>` : '';
 
   const content = document.getElementById('content');
   content.innerHTML = `
@@ -798,9 +876,11 @@ function renderAuditTab() {
       ${audit && audit.summary ? `<p style="margin-top:14px;color:#374151;">${esc(audit.summary)}</p>` : ''}
     </div>
 
+    ${docsPanel}
+
     <div class="toolbar">
       ${dispatchBtn}
-      <button class="btn btn-ghost" id="backToEditBtn">← Edit bill</button>
+      <button class="btn btn-ghost" id="backToEditBtn">← Edit bill &amp; documents</button>
     </div>
     <div id="dispatchResult"></div>
   `;

@@ -87,6 +87,10 @@ router.post('/', (req: Request, res: Response) => {
     ? providedTotal
     : computedTotal;
 
+  const documents = Array.isArray(b.documents)
+    ? (b.documents as unknown[]).map((x) => String(x))
+    : [];
+
   const input: NewClaimInput = {
     patient_name,
     patient_dob:
@@ -102,6 +106,7 @@ router.post('/', (req: Request, res: Response) => {
     discharge_date,
     total_amount,
     items,
+    documents,
   };
 
   try {

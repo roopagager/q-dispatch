@@ -12,6 +12,8 @@
 import {
   countClaims,
   createClaim,
+  getClaim,
+  getClaimDocuments,
   getBillItems,
   updateBillItemAudit,
   updateClaimStatus,
@@ -24,6 +26,12 @@ import {
 } from './db';
 import { generateToken } from './token';
 import { AuditItemStatus, Claim, NewClaimInput, TPADecision } from './types';
+import { DOC_CATALOG, evaluateDocuments } from './documents';
+
+const ALL_DOCS = DOC_CATALOG.map((d) => d.key);
+// Ramesh (the live form-fill demo) is intentionally missing operative notes,
+// so clicking "Save & Run AI Audit" shows the agent catch it before dispatch.
+const RAMESH_DOCS = ALL_DOCS.filter((k) => k !== 'OPERATIVE_NOTES');
 
 const FEE_RATE = (() => {
   const r = Number(process.env.QAI_FEE_RATE);
@@ -46,6 +54,8 @@ function audit(
   const errors = resultItems.filter((i) => i.status === 'ERROR').length;
   const issues = resultItems.filter((i) => i.status !== 'OK').length;
   updateClaimStatus(claimId, 'AUDITED');
+  const claim = getClaim(claimId)!;
+  const docCheck = evaluateDocuments(items, getClaimDocuments(claim));
   addAuditLog(claimId, 'AUDIT', {
     passed: errors === 0,
     issue_count: issues,
@@ -56,6 +66,9 @@ function audit(
         : issues > 0
           ? `${issues} warning(s) flagged for review. No blocking errors — cleared for dispatch.`
           : 'All line items validated successfully. The claim is cleared for dispatch.',
+    documents: docCheck.documents,
+    missing_required: docCheck.missing_required,
+    docs_complete: docCheck.complete,
   });
 }
 
@@ -140,7 +153,8 @@ function clear(claim: Claim, approved: number, ref: string, clearedAt: string): 
   });
 }
 
-const make = (input: NewClaimInput) => createClaim(input);
+const make = (input: NewClaimInput, docs: string[] = ALL_DOCS) =>
+  createClaim({ ...input, documents: docs });
 
 export function seedFullDemoIfEmpty(): void {
   if (countClaims() > 0) return;
@@ -168,7 +182,7 @@ export function seedFullDemoIfEmpty(): void {
       { description: 'Ultrasound abdomen', procedure_code: 'RAD-US', quantity: 1, unit: 'scan', amount: 1800 },
       { description: 'Nursing charges', procedure_code: 'NURS-GW', quantity: 6, unit: 'days', amount: 1200 },
     ],
-  });
+  }, RAMESH_DOCS);
 
   // Stage 2 · AUDITED (one WARN)
   const c2 = make({

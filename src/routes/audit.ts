@@ -8,9 +8,13 @@ import {
   getBillItems,
   updateBillItemAudit,
   updateClaimStatus,
+  updateClaimDocuments,
+  getClaimDocuments,
   addAuditLog,
 } from '../db';
 import { auditBill } from '../ai';
+import { evaluateDocuments } from '../documents';
+import { AuditResponse } from '../types';
 
 const router = Router();
 
@@ -28,6 +32,16 @@ router.post('/audit/:claimId', async (req: Request, res: Response) => {
     return;
   }
 
+  // If the clerk submitted an updated document checklist, persist it first so
+  // attaching a missing document and re-auditing reflects the change.
+  const bodyDocs = (req.body ?? {}).documents;
+  if (Array.isArray(bodyDocs)) {
+    updateClaimDocuments(claim.id, bodyDocs.map((x: unknown) => String(x)));
+  }
+  const attachedDocs = Array.isArray(bodyDocs)
+    ? bodyDocs.map((x: unknown) => String(x))
+    : getClaimDocuments(claim);
+
   try {
     const result = await auditBill(claim, items);
 
@@ -42,10 +56,21 @@ router.post('/audit/:claimId', async (req: Request, res: Response) => {
       }
     }
 
-    updateClaimStatus(claim.id, 'AUDITED');
-    addAuditLog(claim.id, 'AUDIT', result);
+    // Deterministic document-completeness check (the "agent catches missing
+    // documents before submission" feature).
+    const docCheck = evaluateDocuments(items, attachedDocs);
 
-    res.json(result);
+    const response: AuditResponse = {
+      ...result,
+      documents: docCheck.documents,
+      missing_required: docCheck.missing_required,
+      docs_complete: docCheck.complete,
+    };
+
+    updateClaimStatus(claim.id, 'AUDITED');
+    addAuditLog(claim.id, 'AUDIT', response);
+
+    res.json(response);
   } catch (err) {
     res.status(502).json({
       error: err instanceof Error ? err.message : 'AI audit failed',

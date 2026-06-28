@@ -84,6 +84,16 @@ const DEMO_CLAIM: NewClaimInput = {
       amount: 1200,
     },
   ],
+  // Intentionally missing 'Operative / procedure notes' so the document
+  // completeness check flags it during the audit.
+  documents: [
+    'PRE_AUTH',
+    'DISCHARGE',
+    'ITEMISED_BILL',
+    'ID_POLICY',
+    'PHARMACY_BILL',
+    'INVESTIGATION',
+  ],
 };
 
 export function seedIfEmpty(): void {

@@ -45,6 +45,7 @@ export interface Claim {
   approval_ref: string | null;
   copay_amount: number | null;
   cleared_at: string | null;
+  documents: string | null; // JSON array of attached document keys
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +108,23 @@ export interface AuditResult {
   summary: string;
 }
 
+export interface DocumentFinding {
+  key: string;
+  label: string;
+  required: boolean;
+  attached: boolean;
+  status: 'OK' | 'MISSING' | 'NOT_REQUIRED';
+  note: string;
+}
+
+/** Full audit response returned by the audit route: AI line-item audit +
+ *  deterministic document-completeness check. */
+export interface AuditResponse extends AuditResult {
+  documents: DocumentFinding[];
+  missing_required: string[];
+  docs_complete: boolean;
+}
+
 export interface TPAParseResult {
   decision: TPADecision;
   approval_ref: string | null;
@@ -141,6 +159,7 @@ export interface NewClaimInput {
   discharge_date: string;
   total_amount: number;
   items: NewBillItemInput[];
+  documents?: string[]; // attached document keys
 }
 
 export interface ClaimWithItems extends Claim {

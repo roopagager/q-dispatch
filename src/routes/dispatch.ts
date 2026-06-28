@@ -7,11 +7,13 @@ import {
   getClaim,
   getBillItems,
   hasErrorItems,
+  getClaimDocuments,
   setClaimDispatched,
   addAuditLog,
 } from '../db';
 import { generateToken } from '../token';
 import { dispatchClaim } from '../mailer';
+import { evaluateDocuments } from '../documents';
 
 const router = Router();
 
@@ -37,6 +39,19 @@ router.post('/dispatch/:claimId', async (req: Request, res: Response) => {
   }
 
   const items = getBillItems(claim.id);
+
+  // Block dispatch until all required supporting documents are attached.
+  const docCheck = evaluateDocuments(items, getClaimDocuments(claim));
+  if (!docCheck.complete) {
+    res.status(422).json({
+      error: `Dispatch blocked — missing required documents: ${docCheck.missing_required.join(
+        ', '
+      )}. Attach them and re-audit before dispatch.`,
+      missing_required: docCheck.missing_required,
+    });
+    return;
+  }
+
   const token = generateToken(claim.insurer_code, claim.icd_code);
 
   try {
