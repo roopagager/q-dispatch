@@ -11,6 +11,7 @@ import cookieParser from 'cookie-parser';
 import path from 'path';
 import { initDb } from './db';
 import { seedIfEmpty } from './seed';
+import { seedFullDemoIfEmpty } from './demoSeed';
 import { startCron } from './cron';
 import { requireLogin, loginPage, loginPost, logout } from './middleware/auth';
 import { getLastPolledAt } from './inbox';
@@ -62,7 +63,13 @@ app.get('*', (_req, res) =>
 
 // --- Bootstrap --------------------------------------------------------------
 initDb();
-seedIfEmpty();
+// SEED_DEMO=full seeds a complete demo roster (every stage + decision path);
+// otherwise just the single spec demo claim. Both only seed when DB is empty.
+if (process.env.SEED_DEMO === 'full') {
+  seedFullDemoIfEmpty();
+} else {
+  seedIfEmpty();
+}
 startCron();
 
 app.listen(PORT, () =>
