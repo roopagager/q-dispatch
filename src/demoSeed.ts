@@ -59,6 +59,26 @@ function audit(
   });
 }
 
+// Records a claim's ORIGINAL submission (with the mistakes staff first made),
+// written before the corrected audit so it counts as the "first attempt" in
+// the Audit Insights report. Pass only the flagged lines.
+function firstAttempt(
+  claimId: string,
+  flagged: Array<{ line: number; status: AuditItemStatus; note: string }>
+): void {
+  const errs = flagged.filter((f) => f.status === 'ERROR').length;
+  addAuditLog(claimId, 'AUDIT', {
+    passed: errs === 0,
+    issue_count: flagged.length,
+    items: flagged.map((f) => ({
+      line_number: f.line,
+      status: f.status,
+      note: f.note,
+    })),
+    summary: `Initial submission flagged ${flagged.length} issue(s) for correction before re-audit.`,
+  });
+}
+
 function dispatch(claim: Claim, email: string, at: string): string {
   const token = generateToken(claim.insurer_code, claim.icd_code, new Date(at));
   setClaimDispatched(claim.id, token, email, at);
@@ -171,6 +191,9 @@ export function seedFullDemoIfEmpty(): void {
       { description: 'Oxygen therapy', procedure_code: 'RESP-O2', quantity: 3, unit: 'days', amount: 8000 },
     ],
   });
+  firstAttempt(c2.id, [
+    { line: 4, status: 'WARN', note: 'Consumable (gloves) listed without a quantity.' },
+  ]);
   audit(c2.id, {
     4: { status: 'WARN', note: 'Consumable (gloves) listed without a quantity — add count before submission.' },
   });
@@ -194,6 +217,10 @@ export function seedFullDemoIfEmpty(): void {
       { description: 'Cardiac monitoring', procedure_code: 'MON-ECG', quantity: 3, unit: 'days', amount: 9000 },
     ],
   });
+  firstAttempt(c3.id, [
+    { line: 2, status: 'ERROR', note: "Vague description ('Stent') — specify make, type and dimensions." },
+    { line: 4, status: 'WARN', note: 'Procedure code missing for cardiac monitoring.' },
+  ]);
   audit(c3.id);
   dispatch(c3, 'claims@hdfcergo.com', '2025-06-26T09:15:00.000Z');
 
@@ -249,6 +276,9 @@ export function seedFullDemoIfEmpty(): void {
       { description: 'Room charges – Private', procedure_code: 'HOSP-RMP', quantity: 4, unit: 'nights', amount: 15000 },
     ],
   });
+  firstAttempt(c5.id, [
+    { line: 3, status: 'ERROR', note: 'Room charge amount entered as ₹0 — must be a positive value.' },
+  ]);
   audit(c5.id);
   const t5 = dispatch(c5, 'claims@starhealth.in', '2025-06-23T10:00:00.000Z');
   reply(c5.id, t5, {
@@ -283,6 +313,10 @@ export function seedFullDemoIfEmpty(): void {
       { description: 'Pharmacy', procedure_code: 'DRUG-MISC', quantity: 1, unit: 'lot', amount: 3000 },
     ],
   });
+  firstAttempt(c6.id, [
+    { line: 4, status: 'ERROR', note: "Vague description ('Pharmacy') — itemise drugs with name and dose." },
+    { line: 3, status: 'WARN', note: 'Attendant comfort charge is a non-payable item.' },
+  ]);
   audit(c6.id);
   const t6 = dispatch(c6, 'claims@carehealth.in', '2025-06-23T13:30:00.000Z');
   reply(c6.id, t6, {

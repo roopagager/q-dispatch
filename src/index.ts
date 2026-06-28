@@ -21,6 +21,7 @@ import dispatchRouter from './routes/dispatch';
 import inboxRouter from './routes/inbox';
 import clearanceRouter from './routes/clearance';
 import ledgerRouter from './routes/ledger';
+import insightsRouter from './routes/insights';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +47,7 @@ app.use('/api', dispatchRouter);
 app.use('/api', inboxRouter);
 app.use('/api', clearanceRouter);
 app.use('/api/ledger', ledgerRouter);
+app.use('/api/insights', insightsRouter);
 
 app.get('/api/health', (_req, res) =>
   res.json({

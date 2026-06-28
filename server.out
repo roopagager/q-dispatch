@@ -1,0 +1,14 @@
+[cron] scheduled inbox poll: */90 * * * * *
+Q-Dispatch running on port 3000
+[cron] 2026-06-28T21:45:58.739Z inbox poll started
+[inbox] IMAP credentials not configured — skipping poll.
+[cron] 2026-06-28T21:45:58.741Z inbox poll complete
+[cron] 2026-06-28T21:46:00.785Z inbox poll started
+[inbox] IMAP credentials not configured — skipping poll.
+[cron] 2026-06-28T21:46:00.786Z inbox poll complete
+[cron] 2026-06-28T21:47:00.282Z inbox poll started
+[inbox] IMAP credentials not configured — skipping poll.
+[cron] 2026-06-28T21:47:00.283Z inbox poll complete
+[cron] 2026-06-28T21:48:00.804Z inbox poll started
+[inbox] IMAP credentials not configured — skipping poll.
+[cron] 2026-06-28T21:48:00.805Z inbox poll complete

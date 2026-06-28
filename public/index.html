@@ -335,6 +335,7 @@
 <div class="layout">
   <aside class="sidebar" id="sidebar">
     <button class="new-claim-btn" id="newClaimBtn">+ New Claim</button>
+    <button class="btn btn-ghost" id="insightsBtn" style="width:100%;margin-bottom:14px;">📊 Audit Insights</button>
     <h2>Claims</h2>
     <div id="claimsList"><div class="empty">Loading…</div></div>
   </aside>
@@ -1047,9 +1048,68 @@ function renderClearanceTab() {
   document.getElementById('newPatientBtn').addEventListener('click', newClaim);
 }
 
+// ---- Audit Insights --------------------------------------------------------
+
+async function renderInsights() {
+  state.current = null;
+  stopRefresh();
+  renderSidebar();
+  document.querySelectorAll('#pipeline .stage').forEach((el) => el.classList.remove('active', 'done'));
+
+  const content = document.getElementById('content');
+  content.innerHTML = '<div class="card"><p class="empty">Loading insights…</p></div>';
+
+  let d;
+  try {
+    d = await api('/api/insights');
+  } catch (e) {
+    toast(e.message, 'error');
+    return;
+  }
+
+  const maxCount = Math.max(1, ...d.error_types.map((t) => t.count));
+  const bars = d.error_types.length
+    ? d.error_types.map((t) => `
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;">
+            <span>${esc(t.label)}</span><span style="font-weight:bold;">${t.count}</span>
+          </div>
+          <div style="background:#ececec;border-radius:6px;height:16px;overflow:hidden;">
+            <div style="height:100%;width:${Math.round((t.count / maxCount) * 100)}%;background:var(--amber);border-radius:6px;"></div>
+          </div>
+        </div>`).join('')
+    : '<p class="empty">No issues recorded yet — run some audits to populate this report.</p>';
+
+  content.innerHTML = `
+    <div class="card">
+      <h3>Audit Insights — staff data-entry quality</h3>
+      <p class="hint">Based on the AI's <strong>first</strong> audit of each claim — what staff originally submitted, before any corrections.</p>
+      <div class="summary-card" style="margin-top:10px;">
+        <div class="kv"><div class="k">Claims audited</div><div class="v">${d.claims_audited}</div></div>
+        <div class="kv"><div class="k">Clean first-pass</div><div class="v">${d.clean_rate}%</div></div>
+        <div class="kv"><div class="k">Errors caught</div><div class="v" style="color:var(--danger);">${d.total_errors}</div></div>
+        <div class="kv"><div class="k">Warnings</div><div class="v" style="color:var(--warn);">${d.total_warnings}</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Most common mistakes</h3>
+      ${bars}
+      <div class="banner info" style="margin:14px 0 0;">
+        The AI flagged <strong>${d.flagged_count} of ${d.claims_audited}</strong> claims before submission — issues that would otherwise risk rejection, deductions, or rework.
+      </div>
+    </div>
+
+    <div class="card" style="background:#fafafa;">
+      <p class="hint" style="margin:0;">💡 Management view: this report shows where your billing team needs support. Per-staff breakdown becomes available once individual user accounts are enabled.</p>
+    </div>
+  `;
+}
+
 // ---- Boot ------------------------------------------------------------------
 
 document.getElementById('newClaimBtn').addEventListener('click', newClaim);
+document.getElementById('insightsBtn').addEventListener('click', renderInsights);
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   try {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });

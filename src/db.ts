@@ -392,6 +392,93 @@ export function getAuditLogs(claimId: string): AuditLog[] {
 }
 
 // ----------------------------------------------------------------------------
+// Audit insights — staff data-entry quality from the FIRST audit of each claim
+// ----------------------------------------------------------------------------
+
+function classifyAuditNote(
+  note: string | undefined,
+  status: AuditItemStatus
+): string {
+  const n = (note || '').toLowerCase();
+  if (/vague|drug name|no specifics|description/.test(n))
+    return 'Vague description';
+  if (/quantity|qty/.test(n)) return 'Missing quantity';
+  if (/code/.test(n)) return 'Procedure code issue';
+  if (/zero|negative|amount/.test(n)) return 'Invalid amount (₹0 / negative)';
+  if (/non-payable|attendant|telephone|food|laundry|newspaper|visitor/.test(n))
+    return 'Non-payable item';
+  return status === 'ERROR' ? 'Other error' : 'Other warning';
+}
+
+export interface AuditInsights {
+  claims_audited: number;
+  clean_count: number; // submitted with no issues at all
+  clean_rate: number; // %
+  flagged_count: number; // had at least one error or warning
+  total_errors: number;
+  total_warnings: number;
+  error_types: Array<{ label: string; count: number }>;
+}
+
+export function auditInsights(): AuditInsights {
+  // rowid ASC = insertion order, so the first row per claim is its FIRST audit
+  // (what staff originally submitted), before any corrections.
+  const rows = db
+    .prepare(
+      `SELECT claim_id, payload FROM audit_logs WHERE stage = 'AUDIT' ORDER BY rowid ASC`
+    )
+    .all() as Array<{ claim_id: string; payload: string }>;
+
+  const firstByClaim = new Map<string, string>();
+  for (const r of rows) {
+    if (!firstByClaim.has(r.claim_id)) firstByClaim.set(r.claim_id, r.payload);
+  }
+
+  let claimsAudited = 0;
+  let cleanCount = 0;
+  let totalErrors = 0;
+  let totalWarnings = 0;
+  const typeCounts = new Map<string, number>();
+
+  for (const payload of firstByClaim.values()) {
+    let res: { items?: Array<{ status: AuditItemStatus; note?: string }> };
+    try {
+      res = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    claimsAudited++;
+    const items = Array.isArray(res.items) ? res.items : [];
+    const errs = items.filter((i) => i.status === 'ERROR');
+    const warns = items.filter((i) => i.status === 'WARN');
+    if (errs.length === 0 && warns.length === 0) cleanCount++;
+    totalErrors += errs.length;
+    totalWarnings += warns.length;
+    for (const it of [...errs, ...warns]) {
+      const cat = classifyAuditNote(it.note, it.status);
+      typeCounts.set(cat, (typeCounts.get(cat) || 0) + 1);
+    }
+  }
+
+  const errorTypes = Array.from(typeCounts.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    claims_audited: claimsAudited,
+    clean_count: cleanCount,
+    clean_rate:
+      claimsAudited > 0
+        ? Math.round((cleanCount / claimsAudited) * 1000) / 10
+        : 0,
+    flagged_count: claimsAudited - cleanCount,
+    total_errors: totalErrors,
+    total_warnings: totalWarnings,
+    error_types: errorTypes,
+  };
+}
+
+// ----------------------------------------------------------------------------
 // Ledger
 // ----------------------------------------------------------------------------
 
