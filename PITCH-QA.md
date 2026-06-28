@@ -84,6 +84,12 @@ The demo includes Star Health, Care Health, HDFC Ergo, and New India. Adding mor
 **Q: What happens if a claim is wrong or gets rejected?**
 Two safety nets: (1) the **AI blocks** wrong items before they're ever sent; (2) if the insurer still rejects or asks for more info, their reply email is **read automatically** and the app shows you the decision, the reasons, and exactly which documents to provide.
 
+**Q: Does the AI also check that the supporting documents are complete — so we avoid "send more documents" requests?**
+Yes. Before dispatch, the agent runs a **Document Completeness** check: it infers which documents this claim needs from the bill (e.g. a surgery requires operative notes, an implant requires the implant invoice, pharmacy lines require an itemised pharmacy bill) and flags any that are missing. **Dispatch is blocked until the required documents are attached.** This catches the common, predictable gaps up front and reduces "MORE_INFO / send more documents" requests from insurers. (It can't eliminate 100% — insurers sometimes ask for originals or clarifications — so when one still happens, the AI reads that request and lists exactly what's needed.)
+
+**Q: Is the document check AI or fixed rules?**
+The document requirement rules are **deterministic** (fixed compliance logic), not AI guesswork — because required-document checks should be exact and auditable. The AI handles the messy bill-text reading; the rules handle the paperwork checklist.
+
 **Q: Does it read the insurer's reply automatically?**
 Yes — it checks the reply inbox every 90 seconds, matches the tracking reference, and the AI parses the decision. No manual email-checking needed. (For the demo we use a "Simulate Reply" button; in production we connect the real inbox.)
 
@@ -125,7 +131,7 @@ Multi-hospital support, role-based user accounts, direct NHCX gateway integratio
 
 1. **Log in** → show the clean four-stage pipeline.
 2. **Anita Desai (AUDITED)** → AI flagged a missing quantity.
-3. **The live moment:** open **Ramesh Nair (DRAFT)** → click **Save & Run AI Audit** → Claude flags the bad lines in real time.
+3. **The live moment:** open **Ramesh Nair (DRAFT)** → click **Save & Run AI Audit** → Claude flags the bad bill lines **and** the agent catches a missing required document (operative notes). Tick the document → **Re-run AI Audit** → now complete and cleared for dispatch.
 4. **Sunita Pillai (REPLIED · PARTIAL)** → click **Clear to Counter** live → see patient copay.
 5. **Arjun Mehta (REJECTED)** and **Priya Menon (MORE_INFO)** → show the system handles bad/queried claims.
 6. **Mohammed Iqbal (CLEARED)** → "patient pays ₹4,000; our 0.5% fee is billed to the hospital, never the patient."
