@@ -35,12 +35,20 @@ router.post('/appeal/:claimId', async (req: Request, res: Response) => {
 
   try {
     let text = await draftAppeal(claim, getBillItems(claim.id));
-    // Fill in real identifiers locally (they were never sent to the AI).
+    // Fill in real identifiers / org / date locally (never sent to the AI).
+    const today = new Date().toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
     text = text
       .replace(/\[PATIENT_NAME\]/g, claim.patient_name)
       .replace(/\[POLICY_NO\]/g, claim.policy_number)
       .replace(/\[CLAIM_REF\]/g, claim.tracking_token || '—')
-      .replace(/\[APPROVAL_REF\]/g, claim.approval_ref || 'N/A');
+      .replace(/\[APPROVAL_REF\]/g, claim.approval_ref || 'N/A')
+      .replace(/\[HOSPITAL_NAME\]/g, 'Jubilee Hospital')
+      .replace(/\[INSURER\]/g, claim.insurer)
+      .replace(/\[DATE\]/g, today);
     res.json({ draft: text });
   } catch (err) {
     res.status(502).json({
