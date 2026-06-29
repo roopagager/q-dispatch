@@ -970,8 +970,23 @@ function renderStatusTab() {
         <div class="kv"><div class="k">Last inbox poll</div><div class="v" style="font-size:13px;" id="lastPolled">${fmtDateTime(state.lastPolledAt)}</div></div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="toolbar" style="justify-content:space-between;">
+        <div>
+          <h3 style="margin:0;">NHCX / FHIR Claim Payload</h3>
+          <p class="hint" style="margin:4px 0 0;">The HL7 FHIR R4 bundle this claim is transmitted as — NHCX (ABDM) ready.</p>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="nhcxToggle">View payload</button>
+      </div>
+      <pre id="nhcxPayload" style="display:none;background:#1A2233;color:#cfe3c0;padding:14px;border-radius:8px;overflow:auto;max-height:340px;font-size:11.5px;line-height:1.5;margin-top:12px;"></pre>
+    </div>
+
     ${body}
   `;
+
+  const nhcxBtn = document.getElementById('nhcxToggle');
+  if (nhcxBtn) nhcxBtn.addEventListener('click', () => toggleNhcx(c.id));
 
   if (c.status === 'DISPATCHED') {
     document.getElementById('parseReplyBtn').addEventListener('click', parseReply);
@@ -979,6 +994,27 @@ function renderStatusTab() {
   } else {
     const clearBtn = document.getElementById('clearBtn');
     if (clearBtn && !clearBtn.disabled) clearBtn.addEventListener('click', clearToCounter);
+  }
+}
+
+async function toggleNhcx(claimId) {
+  const pre = document.getElementById('nhcxPayload');
+  const btn = document.getElementById('nhcxToggle');
+  if (!pre) return;
+  if (pre.style.display !== 'none') {
+    pre.style.display = 'none';
+    btn.textContent = 'View payload';
+    return;
+  }
+  btn.textContent = 'Loading…';
+  try {
+    const bundle = await api('/api/claims/' + claimId + '/nhcx');
+    pre.textContent = JSON.stringify(bundle, null, 2);
+    pre.style.display = 'block';
+    btn.textContent = 'Hide payload';
+  } catch (e) {
+    toast(e.message, 'error');
+    btn.textContent = 'View payload';
   }
 }
 

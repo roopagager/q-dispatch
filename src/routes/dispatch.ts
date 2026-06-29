@@ -14,6 +14,7 @@ import {
 import { generateToken } from '../token';
 import { dispatchClaim } from '../mailer';
 import { evaluateDocuments } from '../documents';
+import { buildNhcxClaimBundle, postToNhcx, isNhcxEnabled } from '../nhcx';
 
 const router = Router();
 
@@ -53,31 +54,66 @@ router.post('/dispatch/:claimId', async (req: Request, res: Response) => {
   }
 
   const token = generateToken(claim.insurer_code, claim.icd_code);
+  const dispatchedAt = new Date().toISOString();
+
+  // Generate the NHCX-compatible FHIR R4 claim bundle (always — this proves
+  // NHCX-readiness and is the payload the gateway will carry).
+  const bundle = buildNhcxClaimBundle(
+    { ...claim, tracking_token: token, dispatched_at: dispatchedAt },
+    items
+  );
 
   try {
-    const { dispatchEmail } = await dispatchClaim(claim, items, token);
-    const dispatchedAt = new Date().toISOString();
+    let channel: string;
+    let target: string;
 
-    setClaimDispatched(claim.id, token, dispatchEmail, dispatchedAt);
+    if (isNhcxEnabled()) {
+      // NHCX gateway transport (active once ABDM onboarding is configured).
+      const result = await postToNhcx(
+        bundle,
+        process.env.NHCX_ENDPOINT as string,
+        process.env.NHCX_API_KEY
+      );
+      if (result.status >= 200 && result.status < 300) {
+        channel = 'NHCX';
+        target = process.env.NHCX_ENDPOINT as string;
+      } else {
+        // Gateway error → multi-channel fallback to email.
+        const { dispatchEmail } = await dispatchClaim(claim, items, token);
+        channel = 'EMAIL (NHCX fallback)';
+        target = dispatchEmail;
+      }
+    } else {
+      const { dispatchEmail } = await dispatchClaim(claim, items, token);
+      channel = 'EMAIL';
+      target = dispatchEmail;
+    }
+
+    setClaimDispatched(claim.id, token, target, dispatchedAt);
     addAuditLog(claim.id, 'DISPATCH', {
       token,
-      dispatch_email: dispatchEmail,
+      channel,
+      dispatch_target: target,
       dispatched_at: dispatchedAt,
       item_count: items.length,
       total_amount: claim.total_amount,
+      fhir_profile: bundle.meta.profile[0],
+      nhcx_bundle_generated: true,
     });
 
     res.json({
       token,
       dispatched_at: dispatchedAt,
-      dispatch_email: dispatchEmail,
+      dispatch_email: target,
+      channel,
+      nhcx_ready: true,
     });
   } catch (err) {
     res.status(502).json({
       error:
         err instanceof Error
-          ? `Dispatch email failed: ${err.message}`
-          : 'Dispatch email failed',
+          ? `Dispatch failed: ${err.message}`
+          : 'Dispatch failed',
     });
   }
 });

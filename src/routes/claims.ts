@@ -12,6 +12,7 @@ import {
   INSURERS,
 } from '../db';
 import { NewBillItemInput, NewClaimInput } from '../types';
+import { buildNhcxClaimBundle } from '../nhcx';
 
 const router = Router();
 
@@ -137,6 +138,17 @@ router.get('/:id', (req: Request, res: Response) => {
     items: getBillItems(claim.id),
     audit_logs: getAuditLogs(claim.id),
   });
+});
+
+// GET /api/claims/:id/nhcx — the NHCX-compatible FHIR R4 claim bundle
+router.get('/:id/nhcx', (req: Request, res: Response) => {
+  const claim = getClaim(req.params.id);
+  if (!claim) {
+    res.status(404).json({ error: 'Claim not found' });
+    return;
+  }
+  const bundle = buildNhcxClaimBundle(claim, getBillItems(claim.id));
+  res.json(bundle);
 });
 
 export default router;
