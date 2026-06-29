@@ -22,6 +22,7 @@ import inboxRouter from './routes/inbox';
 import clearanceRouter from './routes/clearance';
 import ledgerRouter from './routes/ledger';
 import insightsRouter from './routes/insights';
+import hisRouter from './routes/his';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +47,7 @@ app.use('/api', auditRouter);
 app.use('/api', dispatchRouter);
 app.use('/api', inboxRouter);
 app.use('/api', clearanceRouter);
+app.use('/api', hisRouter);
 app.use('/api/ledger', ledgerRouter);
 app.use('/api/insights', insightsRouter);
 

@@ -604,6 +604,27 @@ function renderNewClaimTab(claim, errorMsg) {
     ${errorMsg ? `<div class="banner err">AI audit could not run: ${esc(errorMsg)}</div>` : ''}
     ${savedDraft && !errorMsg ? `<div class="banner info">Claim saved as draft — re-run the AI audit below.</div>` : ''}
     <div class="card">
+      <div class="toolbar" style="justify-content:space-between;">
+        <div>
+          <div class="section-label" style="margin:0;">⬇ Import from HIS</div>
+          <p class="hint" style="margin:4px 0 0;">Pull a real HIS export (FHIR R4 bundle or CSV) — the agent parses it into the form for review.</p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="hisToggle">Import…</button>
+      </div>
+      <div id="hisPanel" style="display:none;margin-top:12px;">
+        <div class="toolbar" style="margin-bottom:8px;">
+          <select id="hisFormat" style="padding:8px;border:1px solid #d8dbe0;border-radius:8px;">
+            <option value="fhir">FHIR R4 Bundle</option>
+            <option value="csv">CSV billing export</option>
+          </select>
+          <button type="button" class="btn btn-ghost btn-sm" id="hisSampleBtn">Load sample</button>
+          <button type="button" class="btn btn-amber btn-sm" id="hisParseBtn">Parse &amp; Fill Form →</button>
+        </div>
+        <textarea class="reply" id="hisContent" placeholder="Paste a FHIR Bundle (JSON) or CSV billing export here…"></textarea>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="section-label">A · Patient &amp; Policy Details</div>
       <div class="grid2">
         <div class="field"><label>Patient name</label><input id="f_patient_name" value="${esc(p.patient_name||'')}" /></div>
@@ -671,7 +692,100 @@ function renderNewClaimTab(claim, errorMsg) {
     if (savedDraft) runAudit(claim.id);
     else submitAndAudit();
   });
+
+  // HIS import wiring
+  document.getElementById('hisToggle').addEventListener('click', () => {
+    const panel = document.getElementById('hisPanel');
+    const open = panel.style.display === 'none';
+    panel.style.display = open ? 'block' : 'none';
+    const ta = document.getElementById('hisContent');
+    if (open && !ta.value.trim()) ta.value = getHisSample(document.getElementById('hisFormat').value);
+  });
+  document.getElementById('hisSampleBtn').addEventListener('click', () => {
+    document.getElementById('hisContent').value = getHisSample(document.getElementById('hisFormat').value);
+  });
+  document.getElementById('hisParseBtn').addEventListener('click', runHisImport);
 }
+
+function applyHisDraft(draft) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('f_patient_name', draft.patient_name);
+  set('f_patient_dob', draft.patient_dob);
+  set('f_policy_number', draft.policy_number);
+  if (draft.insurer) { const sel = document.getElementById('f_insurer'); if (sel) sel.value = draft.insurer; }
+  set('f_icd_code', draft.icd_code);
+  set('f_diagnosis', draft.diagnosis);
+  set('f_doctor_name', draft.doctor_name);
+  set('f_admission_date', draft.admission_date);
+  set('f_discharge_date', draft.discharge_date);
+  const body = document.getElementById('billBody');
+  if (body && Array.isArray(draft.items) && draft.items.length) {
+    body.innerHTML = '';
+    draft.items.forEach((it) => body.appendChild(buildRow({
+      description: it.description, procedure_code: it.procedure_code || '',
+      quantity: it.quantity == null ? '' : it.quantity, unit: it.unit || '', amount: it.amount,
+    })));
+    recalcTotal();
+  }
+}
+
+async function runHisImport() {
+  const format = document.getElementById('hisFormat').value;
+  const content = document.getElementById('hisContent').value.trim();
+  if (!content) { toast('Paste an HIS export first (or click "Load sample").', 'error'); return; }
+  showOverlay('Parsing HIS export…');
+  try {
+    const draft = await api('/api/his/parse', { method: 'POST', body: JSON.stringify({ format, content }) });
+    applyHisDraft(draft);
+    const warn = (draft.warnings && draft.warnings.length) ? ' — ' + draft.warnings[0] : '';
+    toast(`Imported ${draft.items.length} line(s) from HIS ${format.toUpperCase()}.${warn}`, 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    hideOverlay();
+  }
+}
+
+function getHisSample(format) {
+  if (format === 'csv') {
+    return [
+      'Description,Procedure Code,Quantity,Unit,Amount',
+      'Laparoscopic appendectomy,CPT 44970,1,procedure,40000',
+      'General anaesthesia,CPT 00840,1,procedure,11000',
+      'Room charges - General ward,HOSP-RMG,3,nights,12000',
+      'IV fluids - Normal saline,DRUG-NS5,6,units,1500',
+      'Histopathology,LAB-HPE,1,test,3000',
+    ].join('\n');
+  }
+  return JSON.stringify(HIS_SAMPLE_FHIR, null, 2);
+}
+
+const HIS_SAMPLE_FHIR = {
+  resourceType: 'Bundle', type: 'collection',
+  meta: { profile: ['https://nrces.in/ndhm/fhir/r4/StructureDefinition/Claim'] },
+  entry: [
+    { resource: { resourceType: 'Patient', id: 'p1', name: [{ text: 'Lakshmi Reddy' }], birthDate: '1990-03-15',
+      identifier: [{ system: 'https://hospital.example/fhir/policy', value: 'CH-2025-88431' }] } },
+    { resource: { resourceType: 'Coverage', id: 'cov1', status: 'active', subscriberId: 'CH-2025-88431',
+      beneficiary: { reference: 'Patient/p1' }, payor: [{ display: 'Care Health' }] } },
+    { resource: { resourceType: 'Practitioner', id: 'dr1', name: [{ text: 'Dr. A. Rao MS' }] } },
+    { resource: { resourceType: 'Encounter', id: 'enc1', status: 'finished',
+      period: { start: '2025-06-24', end: '2025-06-27' } } },
+    { resource: { resourceType: 'Claim', id: 'cl1', status: 'active', use: 'preauthorization',
+      patient: { reference: 'Patient/p1' }, insurer: { display: 'Care Health' },
+      diagnosis: [{ sequence: 1, diagnosisCodeableConcept: {
+        coding: [{ system: 'http://hl7.org/fhir/sid/icd-10', code: 'K35.80', display: 'Acute appendicitis' }],
+        text: 'Acute appendicitis — laparoscopic appendectomy' } }],
+      item: [
+        { sequence: 1, productOrService: { text: 'Laparoscopic appendectomy', coding: [{ code: 'CPT 44970' }] }, quantity: { value: 1, unit: 'procedure' }, net: { value: 40000, currency: 'INR' } },
+        { sequence: 2, productOrService: { text: 'General anaesthesia', coding: [{ code: 'CPT 00840' }] }, quantity: { value: 1, unit: 'procedure' }, net: { value: 11000, currency: 'INR' } },
+        { sequence: 3, productOrService: { text: 'Room charges - General ward', coding: [{ code: 'HOSP-RMG' }] }, quantity: { value: 3, unit: 'nights' }, net: { value: 12000, currency: 'INR' } },
+        { sequence: 4, productOrService: { text: 'Sterile gloves', coding: [{ code: 'CONS-GLV' }] }, net: { value: 900, currency: 'INR' } },
+        { sequence: 5, productOrService: { text: 'Histopathology', coding: [{ code: 'LAB-HPE' }] }, quantity: { value: 1, unit: 'test' }, net: { value: 3000, currency: 'INR' } }
+      ],
+      total: { value: 66900, currency: 'INR' } } }
+  ]
+};
 
 function buildRow(it) {
   const tr = document.createElement('tr');
