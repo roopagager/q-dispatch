@@ -150,6 +150,8 @@ Mitigations to choose from:
 - *Today:* audit reads bill lines only.
 
 ### C18. AGENT OPTIMISATION  *(the core priority — first-pass-right submission)*
+**Progress:** ✅ Eval harness built (`npm run eval`). ✅ Deterministic/AI split shipped. **Measured benchmark: 100% recall, 100% precision, 100% F1, 97.4% exact accuracy** (38-line golden set). Remaining: self-verification pass, grow the dataset with real anonymised claims, grounding (C16), feedback loop.
+
 Goal: maximise **recall** (catch every real rejection trigger) and **precision** (don't false-flag correct work). Levers, in order:
 1. **Measure first — eval harness:** a test set of realistic claims with *known* issues + clean ones; measure precision/recall on every change. **You can't optimise what you don't measure.**
 2. **Deterministic vs AI split:** move exact checks into code (amount math, ₹0/negative, date logic, code format/length, qty-vs-stay-days, duplicate/unbundled lines). Use the AI only for judgment (vague descriptions, clinical consistency, right-procedure). Removes a whole class of AI errors + false positives.
