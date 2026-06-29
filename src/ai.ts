@@ -12,6 +12,7 @@ import {
   AuditItemStatus,
   TPADecision,
 } from './types';
+import { deterministicFindings, severity } from './auditRules';
 
 const MODEL = 'claude-sonnet-4-6';
 const MAX_TOKENS = 1500;
@@ -101,6 +102,7 @@ async function createMessage(
   const message = await getClient().messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
+    temperature: 0, // deterministic, repeatable audits
     system,
     messages: [{ role: 'user', content: userContent }],
   });
@@ -111,50 +113,93 @@ async function createMessage(
 // FUNCTION 1 — auditBill
 // ----------------------------------------------------------------------------
 
-const AUDIT_SYSTEM = `You are a senior medical billing auditor for Indian private hospitals.
-Validate this itemised bill before it is submitted to a health insurance company.
-Apply these rules strictly:
-1. Description vague (just 'Medicine', 'Drugs', 'Consumables', 'Surgical Kit', 'Injection' with no drug name, dose, or specifics) → ERROR
-2. Consumable items (gloves, syringes, drapes, bandages, catheters) with no quantity listed → WARN
-3. Procedure code missing entirely → WARN
-4. Procedure code appears truncated (fewer than 4 characters) → ERROR
-5. Amount is zero or negative → ERROR
-6. Item matches known non-payable list (attendant charges, telephone charges, food, laundry, newspaper, visitor charges) → WARN
-Return ONLY valid JSON matching this schema:
-{
-  "passed": boolean,           // true only if there are zero ERROR items
-  "issue_count": number,       // count of items with status WARN or ERROR
-  "items": [
-    { "line_number": number, "status": "OK" | "WARN" | "ERROR", "note": string }
-  ],
-  "summary": string            // one short paragraph explaining the result
-}
-Include every line item exactly once. No prose, no markdown.`;
+// The AI is reserved for the ONE judgment call — is the description vague?
+// All exact rules (amount, code, quantity, non-payable) run deterministically
+// in ./auditRules, which removes the AI's false-positive surface and keeps
+// recall exact on those rules.
+const VAGUE_SYSTEM = `You are a senior medical billing auditor. For each bill line, decide ONLY one thing: is the DESCRIPTION too vague or generic to identify what was actually provided?
 
-function normaliseAuditResult(
-  parsed: Partial<AuditResult>,
+Mark vague = true ONLY for generic catch-all terms that carry no specific drug name, dose, procedure, or detail — for example: "Medicine", "Drugs", "Consumables", "Surgical Kit", "Injection", "Charges", "Sundry", "Miscellaneous", "Disposables".
+
+Mark vague = false for anything specific, even if short. Named procedures and surgeries, named investigations / scans / lab panels, named drugs (with or without strength), named rooms, anaesthesia, consultations, nursing, and oxygen/IV-fluid lines are all SPECIFIC and acceptable — never flag them.
+
+Return ONLY valid JSON: {"items":[{"line_number": number, "vague": boolean, "note": string}]}.
+"note" is a short reason ONLY when vague=true, otherwise an empty string. Include every line exactly once. No prose, no markdown.`;
+
+async function aiVagueCheck(
   items: BillItem[]
-): AuditResult {
-  const validStatus: AuditItemStatus[] = ['OK', 'WARN', 'ERROR'];
+): Promise<Map<number, { vague: boolean; note: string }>> {
+  // De-identified: we send only line numbers + descriptions, no patient data.
+  const userContent = JSON.stringify({
+    items: items.map((i) => ({
+      line_number: i.line_number,
+      description: i.description,
+    })),
+  });
 
-  const byLine = new Map<number, { status: AuditItemStatus; note: string }>();
-  for (const it of parsed.items ?? []) {
-    const status = validStatus.includes(it.status as AuditItemStatus)
-      ? (it.status as AuditItemStatus)
-      : 'OK';
-    byLine.set(Number(it.line_number), {
-      status,
-      note: typeof it.note === 'string' ? it.note : '',
-    });
+  const result = new Map<number, { vague: boolean; note: string }>();
+  for (const it of items) result.set(it.line_number, { vague: false, note: '' });
+
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const raw = await createMessage(VAGUE_SYSTEM, userContent);
+      const parsed = extractJson<{
+        items?: Array<{ line_number: number; vague: boolean; note?: string }>;
+      }>(raw);
+      for (const p of parsed.items ?? []) {
+        const ln = Number(p.line_number);
+        if (result.has(ln)) {
+          result.set(ln, {
+            vague: p.vague === true,
+            note: typeof p.note === 'string' ? p.note : '',
+          });
+        }
+      }
+      return result;
+    } catch (err) {
+      lastErr = err;
+    }
   }
+  throw new Error(
+    `auditBill failed after retry: ${
+      lastErr instanceof Error ? lastErr.message : String(lastErr)
+    }`
+  );
+}
 
-  // Guarantee every item is represented exactly once.
+export async function auditBill(
+  claim: Claim,
+  items: BillItem[]
+): Promise<AuditResult> {
+  void claim; // claim context not needed for the de-identified line audit
+  // Deterministic rules (exact) + AI vague-check (judgment), merged per line.
+  const det = deterministicFindings(items);
+  const vague = await aiVagueCheck(items);
+
   const resultItems = items.map((item) => {
-    const found = byLine.get(item.line_number);
+    const notes: string[] = [];
+    let status: AuditItemStatus = 'OK';
+
+    const v = vague.get(item.line_number);
+    if (v?.vague) {
+      status = 'ERROR';
+      notes.push(
+        v.note ||
+          "Description is too vague to identify what was provided (add drug name / dose / specifics)."
+      );
+    }
+
+    const d = det.get(item.line_number);
+    if (d) {
+      if (severity(d.status) > severity(status)) status = d.status;
+      notes.push(d.note);
+    }
+
     return {
       line_number: item.line_number,
-      status: found?.status ?? 'OK',
-      note: found?.note ?? '',
+      status,
+      note: notes.filter(Boolean).join(' '),
     };
   });
 
@@ -166,55 +211,12 @@ function normaliseAuditResult(
     issue_count: issueCount,
     items: resultItems,
     summary:
-      typeof parsed.summary === 'string' && parsed.summary.trim()
-        ? parsed.summary.trim()
-        : errorCount > 0
-          ? `${errorCount} blocking error(s) found. Resolve before dispatch.`
-          : issueCount > 0
-            ? `${issueCount} warning(s) found. Review before dispatch.`
-            : 'All line items validated successfully.',
+      errorCount > 0
+        ? `${errorCount} blocking error(s) found. Resolve before dispatch.`
+        : issueCount > 0
+          ? `${issueCount} warning(s) found. Review before dispatch.`
+          : 'All line items validated successfully.',
   };
-}
-
-export async function auditBill(
-  claim: Claim,
-  items: BillItem[]
-): Promise<AuditResult> {
-  // Privacy by design: the audit only needs the bill lines + clinical codes,
-  // NOT the patient's identity. We deliberately omit patient name and policy
-  // number so no direct identifier is sent to the external AI.
-  const userContent = JSON.stringify({
-    claim: {
-      insurer: claim.insurer,
-      icd_code: claim.icd_code,
-      diagnosis: claim.diagnosis,
-      total_amount: claim.total_amount,
-    },
-    items: items.map((i) => ({
-      line_number: i.line_number,
-      description: i.description,
-      procedure_code: i.procedure_code,
-      quantity: i.quantity,
-      unit: i.unit,
-      amount: i.amount,
-    })),
-  });
-
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const raw = await createMessage(AUDIT_SYSTEM, userContent);
-      const parsed = extractJson<Partial<AuditResult>>(raw);
-      return normaliseAuditResult(parsed, items);
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw new Error(
-    `auditBill failed after retry: ${
-      lastErr instanceof Error ? lastErr.message : String(lastErr)
-    }`
-  );
 }
 
 // ----------------------------------------------------------------------------
