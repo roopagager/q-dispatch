@@ -335,3 +335,65 @@ export async function parseTPAReply(
     }`
   );
 }
+
+// ----------------------------------------------------------------------------
+// FUNCTION 3 — draftAppeal (denial management)
+// ----------------------------------------------------------------------------
+
+const APPEAL_SYSTEM = `You are a hospital insurance claims officer in India. Draft a concise, professional appeal / representation letter to the insurer or TPA contesting their claim decision.
+
+For each deduction or rejection reason given, provide a specific, reasoned, policy-aware counter-argument and request reconsideration. Be factual and courteous.
+
+Use these placeholders VERBATIM where patient identity is needed — do NOT invent or guess identifiers: [PATIENT_NAME], [POLICY_NO], [CLAIM_REF], [APPROVAL_REF].
+
+Keep it under ~250 words, formal letter format. Return ONLY the letter text — no markdown, no preamble, no notes.`;
+
+export async function draftAppeal(
+  claim: Claim,
+  items: BillItem[]
+): Promise<string> {
+  let reasons: string[] = [];
+  let docs: string[] = [];
+  try {
+    reasons = JSON.parse(claim.deduction_reasons || '[]');
+  } catch {
+    reasons = [];
+  }
+  try {
+    docs = JSON.parse(claim.documents_requested || '[]');
+  } catch {
+    docs = [];
+  }
+
+  // De-identified: no patient name / policy number is sent to the AI.
+  const userContent = JSON.stringify({
+    decision: claim.tpa_decision,
+    total_amount: claim.total_amount,
+    approved_amount: claim.approved_amount,
+    deduction_amount: claim.deduction_amount,
+    deduction_reasons: reasons,
+    documents_requested: docs,
+    diagnosis: claim.diagnosis,
+    icd_code: claim.icd_code,
+    bill_lines: items.map((i) => ({
+      description: i.description,
+      amount: i.amount,
+    })),
+  });
+
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const text = await createMessage(APPEAL_SYSTEM, userContent);
+      if (text && text.trim()) return text.trim();
+      throw new Error('empty appeal draft');
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw new Error(
+    `draftAppeal failed after retry: ${
+      lastErr instanceof Error ? lastErr.message : String(lastErr)
+    }`
+  );
+}

@@ -172,6 +172,23 @@ function escapeHtml(s: string): string {
 // Public API
 // ----------------------------------------------------------------------------
 
+export async function sendAppeal(
+  claim: Claim,
+  appealText: string
+): Promise<{ dispatchEmail: string }> {
+  const dispatchEmail = insurerEmailForCode(claim.insurer_code);
+  const subject = `Appeal / Representation — Claim ${claim.tracking_token || ''} — ${claim.patient_name} — Policy ${claim.policy_number}`;
+
+  await transport().sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: dispatchEmail,
+    subject,
+    text: `${appealText}\n\n— Submitted via Q-Dispatch | Quantum AI Ltd. | quantumai.co.uk`,
+  });
+
+  return { dispatchEmail };
+}
+
 export async function dispatchClaim(
   claim: Claim,
   items: BillItem[],

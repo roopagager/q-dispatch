@@ -1144,6 +1144,8 @@ function renderStatusTab() {
   } else {
     const clearBtn = document.getElementById('clearBtn');
     if (clearBtn && !clearBtn.disabled) clearBtn.addEventListener('click', clearToCounter);
+    const appealBtn = document.getElementById('appealBtn');
+    if (appealBtn) appealBtn.addEventListener('click', () => generateAppeal(c.id));
   }
 }
 
@@ -1211,6 +1213,7 @@ function renderDecisionCard(c) {
 
   const cls = dec === 'APPROVED' ? 'ok' : dec === 'PARTIAL' ? 'warn' : dec === 'REJECTED' ? 'err' : 'info';
   const canClear = dec === 'APPROVED' || dec === 'PARTIAL';
+  const canAppeal = dec === 'REJECTED' || (c.deduction_amount && c.deduction_amount > 0);
 
   return `
     <div class="card">
@@ -1225,9 +1228,57 @@ function renderDecisionCard(c) {
       ${docs.length ? `<div style="margin-top:14px;"><strong>Documents requested</strong><ul class="reasons">${docs.map((d)=>`<li>${esc(d)}</li>`).join('')}</ul></div>` : ''}
       <div class="toolbar" style="margin-top:18px;">
         <button class="btn btn-success" id="clearBtn" ${canClear?'':'disabled title="Cannot clear a REJECTED or MORE_INFO claim"'}>Clear to Counter →</button>
-        ${!canClear ? '<span class="hint">This claim cannot proceed to counter clearance.</span>' : ''}
+        ${canAppeal ? '<button class="btn btn-ghost" id="appealBtn">📝 Draft appeal</button>' : ''}
+        ${!canClear && !canAppeal ? '<span class="hint">This claim cannot proceed to counter clearance.</span>' : ''}
+      </div>
+    </div>
+    <div id="appealResult"></div>`;
+}
+
+async function generateAppeal(claimId) {
+  showOverlay('AI is drafting the appeal…');
+  try {
+    const r = await api('/api/appeal/' + claimId, { method: 'POST' });
+    renderAppeal(claimId, r.draft);
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    hideOverlay();
+  }
+}
+
+function renderAppeal(claimId, draft) {
+  document.getElementById('appealResult').innerHTML = `
+    <div class="card">
+      <h3>Appeal Draft <span class="hint" style="font-weight:normal;">— review &amp; edit before sending</span></h3>
+      <textarea class="reply" id="appealText" style="min-height:260px;">${esc(draft)}</textarea>
+      <div class="toolbar" style="margin-top:12px;">
+        <button class="btn btn-amber" id="appealSendBtn">Send appeal to insurer →</button>
+        <button class="btn btn-ghost" id="appealCopyBtn">Copy</button>
+        <span class="hint">AI-drafted from the deduction reasons. A human reviews and sends — nothing is auto-sent.</span>
       </div>
     </div>`;
+  document.getElementById('appealSendBtn').addEventListener('click', () => sendAppealNow(claimId));
+  document.getElementById('appealCopyBtn').addEventListener('click', () => {
+    navigator.clipboard.writeText(document.getElementById('appealText').value).then(
+      () => toast('Appeal copied.', 'success'),
+      () => toast('Copy failed — select manually.', 'error')
+    );
+  });
+}
+
+async function sendAppealNow(claimId) {
+  const text = document.getElementById('appealText').value.trim();
+  if (!text) { toast('Appeal is empty.', 'error'); return; }
+  showOverlay('Sending appeal to insurer…');
+  try {
+    const r = await api('/api/appeal/' + claimId + '/send', { method: 'POST', body: JSON.stringify({ text }) });
+    toast('Appeal sent to ' + r.sent_to, 'success');
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    hideOverlay();
+  }
 }
 
 async function parseReply() {
