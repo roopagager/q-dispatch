@@ -994,17 +994,53 @@ function renderAuditTab() {
 
     <div class="toolbar">
       ${dispatchBtn}
+      <button class="btn btn-ghost" id="predictBtn">🔮 Predict approval</button>
       <button class="btn btn-ghost" id="backToEditBtn">← Edit bill &amp; documents</button>
     </div>
+    <div id="predictResult"></div>
     <div id="dispatchResult"></div>
   `;
 
+  document.getElementById('predictBtn').addEventListener('click', () => runPredict(c.id));
   const db = document.getElementById('dispatchBtn');
   if (db && !db.disabled) db.addEventListener('click', dispatchClaim);
   document.getElementById('backToEditBtn').addEventListener('click', () => {
     // Re-edit: load draft form pre-filled from current claim.
     renderNewClaimTab(state.current);
   });
+}
+
+async function runPredict(claimId) {
+  showOverlay('Predicting approval outcome…');
+  try {
+    const p = await api('/api/predict/' + claimId, { method: 'POST' });
+    renderPrediction(p);
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    hideOverlay();
+  }
+}
+
+function renderPrediction(p) {
+  const cls = p.approval_likelihood === 'HIGH' ? 'ok' : p.approval_likelihood === 'MEDIUM' ? 'warn' : 'err';
+  const factors = (p.risk_factors || []).length
+    ? `<div style="margin-top:14px;"><strong>Risk factors</strong><ul class="reasons">${p.risk_factors.map((f) =>
+        `<li><strong>${esc(f.factor)}</strong>${f.estimated_impact != null ? ` — ${inr(f.estimated_impact)}` : ''}: ${esc(f.note)}</li>`).join('')}</ul></div>`
+    : '<p class="hint" style="margin-top:10px;">No risk factors identified — clean claim.</p>';
+  document.getElementById('predictResult').innerHTML = `
+    <div class="card">
+      <h3>Predicted Outcome <span class="hint" style="font-weight:normal;">(before dispatch)</span></h3>
+      <div class="banner ${cls}">Approval likelihood: ${esc(p.approval_likelihood)} · confidence ${esc(p.confidence)}</div>
+      <div class="summary-card">
+        <div class="kv"><div class="k">Total bill</div><div class="v">${inr(p.total_amount)}</div></div>
+        <div class="kv"><div class="k">Likely approved</div><div class="v" style="color:var(--success);">${inr(p.predicted_approved)}</div></div>
+        <div class="kv"><div class="k">Certain deduction</div><div class="v" style="color:var(--warn);">${inr(p.certain_deduction)}</div></div>
+        <div class="kv"><div class="k">Deduction ratio</div><div class="v">${p.deduction_ratio}%</div></div>
+      </div>
+      ${factors}
+      <p class="hint" style="margin-top:12px;">${esc(p.basis)}</p>
+    </div>`;
 }
 
 async function dispatchClaim() {

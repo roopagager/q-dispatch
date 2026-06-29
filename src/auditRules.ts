@@ -89,4 +89,12 @@ export function deterministicFindings(
   return out;
 }
 
+export function isNonPayable(description: string): boolean {
+  return NON_PAYABLE.test(description || '');
+}
+
+export function isConsumable(description: string): boolean {
+  return CONSUMABLE.test(description || '');
+}
+
 export { severity };
