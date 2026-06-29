@@ -121,7 +121,15 @@ export async function applyReplyToClaim(
   emailBody: string,
   token: string
 ) {
-  const parsed = await parseTPAReply(emailBody, token);
+  // De-identify: strip the patient's name + policy number from the insurer
+  // reply before it is sent to the external AI for parsing.
+  const claim = getClaim(claimId);
+  const redactTerms = claim
+    ? [claim.patient_name, claim.policy_number].filter(
+        (t): t is string => typeof t === 'string' && t.length > 0
+      )
+    : [];
+  const parsed = await parseTPAReply(emailBody, token, redactTerms);
 
   setClaimReplied(claimId, {
     tpa_reply_raw: emailBody,

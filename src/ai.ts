@@ -180,10 +180,11 @@ export async function auditBill(
   claim: Claim,
   items: BillItem[]
 ): Promise<AuditResult> {
+  // Privacy by design: the audit only needs the bill lines + clinical codes,
+  // NOT the patient's identity. We deliberately omit patient name and policy
+  // number so no direct identifier is sent to the external AI.
   const userContent = JSON.stringify({
     claim: {
-      patient_name: claim.patient_name,
-      policy_number: claim.policy_number,
       insurer: claim.insurer,
       icd_code: claim.icd_code,
       diagnosis: claim.diagnosis,
@@ -289,11 +290,32 @@ function normaliseTPAResult(parsed: Partial<TPAParseResult>): TPAParseResult {
   };
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Redact known patient identifiers (name, policy number) from text before it is
+ * sent to the external AI. The reply parser only needs the decision and amounts,
+ * not the patient's identity.
+ */
+export function redactIdentifiers(text: string, terms: string[]): string {
+  let out = text;
+  for (const term of terms) {
+    const t = (term || '').trim();
+    if (t.length < 3) continue; // don't redact trivially short strings
+    out = out.replace(new RegExp(escapeRegExp(t), 'gi'), '[REDACTED]');
+  }
+  return out;
+}
+
 export async function parseTPAReply(
   emailBody: string,
-  trackingToken: string
+  trackingToken: string,
+  redactTerms: string[] = []
 ): Promise<TPAParseResult> {
-  const userContent = `Tracking token: ${trackingToken}\n\nEmail body:\n${emailBody}`;
+  const safeBody = redactIdentifiers(emailBody, redactTerms);
+  const userContent = `Tracking token: ${trackingToken}\n\nEmail body:\n${safeBody}`;
 
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
