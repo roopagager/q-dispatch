@@ -4,3 +4,13 @@ data/
 .env
 server.out
 *.log
+
+# Business/planning docs live in the private q-dispatch-docs repo
+BRD-Q-Dispatch.md
+NFR-and-Delivery-Plan-Q-Dispatch.md
+PRODUCT-SPEC-v2.md
+WORKFLOW-DESIGN.md
+COVERAGE-GAP-ANALYSIS.md
+SPEC-CORRECTED-SECTIONS.md
+PITCH-QA.md
+*.docx
