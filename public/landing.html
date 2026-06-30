@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Q-Dispatch — AI Hospital Claim Dispatch & Clearance | Quantum AI Ltd.</title>
+<meta name="description" content="Q-Dispatch is an AI agent at the hospital discharge counter that audits, dispatches, tracks, and clears cashless insurance claims in under 10 minutes — catching 100% of rejection triggers before submission." />
+<style>
+  :root{
+    --navy:#1A2233; --amber:#BA7517; --amber-l:#FAEEDA; --cream:#FBF7EF;
+    --success:#3B6D11; --success-bg:#EAF3DE; --muted:#6b7280; --line:#e6e8ec; --bg:#F7F8FA;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:Arial,system-ui,sans-serif;color:var(--navy);background:#fff;line-height:1.55}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+  .btn{display:inline-block;border-radius:9px;padding:13px 22px;font-weight:bold;font-size:15px;cursor:pointer;border:none}
+  .btn-amber{background:var(--amber);color:#fff}
+  .btn-amber:hover{background:#a3650f}
+  .btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35)}
+  .btn-ghost:hover{background:rgba(255,255,255,.1)}
+  .btn-dark{background:var(--navy);color:#fff}
+  .btn-dark:hover{background:#12192a}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff}
+  nav .wrap{display:flex;align-items:center;gap:14px;height:60px}
+  .badge{background:var(--amber);color:#fff;font-weight:bold;letter-spacing:.6px;padding:5px 12px;border-radius:999px;font-size:13px}
+  nav .org{font-size:13px;color:#cfd6e4}
+  nav .spacer{flex:1}
+  nav .navlinks a{font-size:14px;color:#cfd6e4;margin-right:18px}
+  nav .navlinks a:hover{color:#fff}
+  @media(max-width:760px){nav .navlinks{display:none}}
+
+  /* hero */
+  .hero{background:linear-gradient(180deg,var(--navy),#222d46);color:#fff;padding:64px 0 72px}
+  .hero h1{font-size:42px;line-height:1.15;letter-spacing:-.5px}
+  .hero h1 .hl{color:var(--amber)}
+  .hero p.sub{font-size:18px;color:#cfd6e4;margin:18px 0 28px;max-width:660px}
+  .hero .cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .demo-creds{margin-top:22px;font-size:13px;color:#aab4c8}
+  .demo-creds code{background:rgba(255,255,255,.1);padding:2px 7px;border-radius:5px;color:#fff}
+  @media(max-width:760px){.hero h1{font-size:32px}}
+
+  /* stats */
+  .stats{background:var(--amber-l);border-top:1px solid #ecdcb8;border-bottom:1px solid #ecdcb8}
+  .stats .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:26px 22px}
+  .stat{text-align:center}
+  .stat .n{font-size:30px;font-weight:bold;color:var(--amber)}
+  .stat .l{font-size:13px;color:var(--navy);margin-top:4px}
+  @media(max-width:760px){.stats .wrap{grid-template-columns:1fr 1fr}}
+
+  section{padding:60px 0}
+  .eyebrow{color:var(--amber);font-weight:bold;font-size:13px;letter-spacing:.6px;text-transform:uppercase}
+  h2.title{font-size:30px;margin:8px 0 8px}
+  .lead{color:var(--muted);font-size:16px;max-width:640px}
+
+  /* pipeline */
+  .pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:34px}
+  .stage{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}
+  .stage .num{width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px}
+  .stage h3{font-size:16px;margin:12px 0 6px}
+  .stage p{font-size:13.5px;color:var(--muted)}
+  @media(max-width:880px){.pipe{grid-template-columns:1fr 1fr}}
+  @media(max-width:520px){.pipe{grid-template-columns:1fr}}
+
+  /* features */
+  .feat-sec{background:var(--bg)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:34px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px}
+  .card .ic{font-size:24px}
+  .card h3{font-size:16px;margin:10px 0 6px}
+  .card p{font-size:13.5px;color:var(--muted)}
+  .tag{display:inline-block;font-size:11px;font-weight:bold;color:var(--success);background:var(--success-bg);padding:2px 9px;border-radius:999px;margin-top:10px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+
+  /* how */
+  .how{display:grid;grid-template-columns:1.1fr 1fr;gap:40px;align-items:center}
+  .how ul{list-style:none;margin-top:18px}
+  .how li{display:flex;gap:12px;margin-bottom:16px}
+  .how li .dot{flex-shrink:0;width:26px;height:26px;border-radius:50%;background:var(--amber-l);color:var(--amber);display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px}
+  .how li b{display:block}
+  .how li span{font-size:14px;color:var(--muted)}
+  .panel{background:var(--navy);color:#fff;border-radius:14px;padding:26px}
+  .panel .row{display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #2c3754;font-size:14px}
+  .panel .row:last-child{border-bottom:none}
+  .panel .row .v{font-weight:bold}
+  .panel .row .g{color:#8fd16a}
+  .panel .row .a{color:var(--amber)}
+  .panel .big{font-size:13px;color:#aab4c8;margin-top:8px}
+  @media(max-width:760px){.how{grid-template-columns:1fr}}
+
+  /* trust */
+  .trust{background:#fff}
+  .trust .grid2{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:26px}
+  .pill{border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;font-size:13px;color:var(--navy)}
+  .pill b{display:block;color:var(--amber);font-size:15px;margin-bottom:3px}
+  @media(max-width:760px){.trust .grid2{grid-template-columns:1fr 1fr}}
+
+  /* cta */
+  .cta-sec{background:linear-gradient(180deg,#222d46,var(--navy));color:#fff;text-align:center}
+  .cta-sec h2{font-size:30px}
+  .cta-sec p{color:#cfd6e4;margin:14px 0 26px;font-size:16px}
+
+  footer{background:var(--navy);color:#aab4c8;font-size:13px;padding:26px 0;border-top:1px solid #2c3754}
+  footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <span class="badge">Q-DISPATCH</span>
+  <span class="org">Quantum AI Ltd.</span>
+  <span class="spacer"></span>
+  <span class="navlinks">
+    <a href="#how">How it works</a>
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+  </span>
+  <a class="btn btn-amber" href="/login">Launch live demo →</a>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow" style="color:var(--amber)">AI agent for hospital cashless claims · NHCX-ready</div>
+  <h1>Clear an insurance claim at the discharge counter — in <span class="hl">under 10 minutes</span>.</h1>
+  <p class="sub">Q-Dispatch is an AI agent that audits the bill, dispatches the claim, reads the insurer's reply, and pushes the exact patient copay to the counter — catching <b>100% of rejection triggers</b> before submission, so patients go home and hospitals get paid faster.</p>
+  <div class="cta">
+    <a class="btn btn-amber" href="/login">Launch live demo →</a>
+    <a class="btn btn-ghost" href="#how">See how it works</a>
+  </div>
+  <div class="demo-creds">Demo login &nbsp;·&nbsp; username <code>qdispatch_admin</code> &nbsp; password <code>ChangeThisToSomethingStrong</code> &nbsp;·&nbsp; sandbox, resets automatically.</div>
+</div></header>
+
+<div class="stats"><div class="wrap">
+  <div class="stat"><div class="n">&lt; 10 min</div><div class="l">Hospital-side processing</div></div>
+  <div class="stat"><div class="n">100%</div><div class="l">Rejection triggers caught (measured)</div></div>
+  <div class="stat"><div class="n">0</div><div class="l">Insurer portal logins</div></div>
+  <div class="stat"><div class="n">0.5%</div><div class="l">Fee — to the hospital, never the patient</div></div>
+</div></div>
+
+<section><div class="wrap">
+  <div class="eyebrow">The pipeline</div>
+  <h2 class="title">Four stages, one autonomous agent</h2>
+  <p class="lead">From the moment the bill is ready to the moment the patient pays — Q-Dispatch owns the whole claim.</p>
+  <div class="pipe">
+    <div class="stage"><div class="num">1</div><h3>Assembly & Pre-Audit</h3><p>Ingests the HIS export, then the AI audits every line and predicts the likely approval — before anything is sent.</p></div>
+    <div class="stage"><div class="num">2</div><h3>Instant Dispatch</h3><p>Builds an NHCX-ready HL7 FHIR claim with a tracking token and transmits it — no portal logins.</p></div>
+    <div class="stage"><div class="num">3</div><h3>Inbox Surveillance</h3><p>Reads the insurer's reply automatically and extracts the decision, amounts, and deductions.</p></div>
+    <div class="stage"><div class="num">4</div><h3>Counter Clearance</h3><p>Pushes the exact copay to the counter; the patient pays and leaves. The fee bills to the hospital.</p></div>
+  </div>
+</div></section>
+
+<section class="feat-sec" id="features"><div class="wrap">
+  <div class="eyebrow">Why Q-Dispatch</div>
+  <h2 class="title">Built to be accurate, fast, and trusted</h2>
+  <div class="grid">
+    <div class="card"><div class="ic">🧠</div><h3>AI pre-audit, measured</h3><p>Catches vague items, bad codes, ₹0 amounts and non-payables. 100% recall, 100% precision on the benchmark.</p><span class="tag">LIVE</span></div>
+    <div class="card"><div class="ic">🔒</div><h3>Privacy by design</h3><p>Patient identity is de-identified before any AI call. DPDP-aligned, full audit trail.</p><span class="tag">LIVE</span></div>
+    <div class="card"><div class="ic">📥</div><h3>HIS ingestion</h3><p>Reads your existing export — HL7 FHIR R4 or CSV — straight into the claim.</p><span class="tag">LIVE</span></div>
+    <div class="card"><div class="ic">🔮</div><h3>Predictive approval</h3><p>Shows the likely approved amount and certain deductions before you dispatch.</p><span class="tag">LIVE</span></div>
+    <div class="card"><div class="ic">📡</div><h3>NHCX-ready dispatch</h3><p>Generates standards-compliant FHIR for the ABDM NHCX gateway, with email fallback today.</p><span class="tag">LIVE</span></div>
+    <div class="card"><div class="ic">📝</div><h3>Denial auto-appeal</h3><p>Drafts a reasoned appeal for rejected or short-paid claims — recover revenue, faster.</p><span class="tag">LIVE</span></div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <div class="eyebrow">How it works</div>
+  <h2 class="title">The agent advises — your staff stay in control</h2>
+  <div class="how">
+    <div>
+      <ul>
+        <li><div class="dot">1</div><div><b>It flags, you decide.</b><span>Every issue is explained with the fix; nothing is auto-submitted. The agent protects the clerk from a rejection — it doesn't police them.</span></div></li>
+        <li><div class="dot">2</div><div><b>Exact where it matters.</b><span>Amounts, codes and the copay are computed deterministically — the AI handles judgement, code handles the maths.</span></div></li>
+        <li><div class="dot">3</div><div><b>Honest by design.</b><span>Patient data is de-identified before AI; the 0.5% fee is the hospital's, never charged to the patient.</span></div></li>
+      </ul>
+    </div>
+    <div class="panel">
+      <div style="font-size:13px;color:#aab4c8;margin-bottom:10px">Counter clearance — what the clerk sees</div>
+      <div class="row"><span>Total bill</span><span class="v">₹1,00,000</span></div>
+      <div class="row"><span>Insurer pays</span><span class="v g">₹77,000</span></div>
+      <div class="row"><span>Patient pays</span><span class="v a">₹23,000</span></div>
+      <div class="big">Q-Dispatch fee ₹385 (0.5% of approved) — billed to the hospital, never the patient.</div>
+    </div>
+  </div>
+</div></section>
+
+<section class="trust"><div class="wrap">
+  <div class="eyebrow">Standards & trust</div>
+  <h2 class="title">Enterprise-ready foundations</h2>
+  <div class="grid2">
+    <div class="pill"><b>HL7 FHIR R4</b>NHCX / ABDM aligned</div>
+    <div class="pill"><b>DPDP 2023</b>Privacy by design</div>
+    <div class="pill"><b>Audit trail</b>Every action logged</div>
+    <div class="pill"><b>Claude AI</b>by Anthropic</div>
+  </div>
+</div></section>
+
+<section class="cta-sec" id="pricing"><div class="wrap">
+  <h2>Pure 0.5%. Zero upfront. Zero subscription.</h2>
+  <p>You only pay when the hospital gets paid — a flat 0.5% of the approved claim, deducted from the insurer reimbursement, never charged to the patient.</p>
+  <a class="btn btn-amber" href="/login">Launch the live demo →</a>
+  <p style="margin-top:18px;font-size:14px">Pilot enquiries: <a href="mailto:hello@quantumai.co.uk" style="color:#fff;text-decoration:underline">hello@quantumai.co.uk</a></p>
+</div></section>
+
+<footer><div class="wrap">
+  <div>© 2025 Quantum AI Ltd. · Q-Dispatch · quantumai.co.uk</div>
+  <div>AI-powered hospital claim dispatch & clearance</div>
+</div></footer>
+
+</body>
+</html>

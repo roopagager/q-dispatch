@@ -58,7 +58,7 @@ export function requireLogin(
 ): void {
   // Public paths exempt from auth.
   if (
-    (req.method === 'GET' && req.path === '/login') ||
+    (req.method === 'GET' && (req.path === '/login' || req.path === '/welcome')) ||
     (req.method === 'POST' && req.path === '/api/auth/login')
   ) {
     return next();
@@ -74,7 +74,9 @@ export function requireLogin(
     return;
   }
 
-  res.redirect('/login');
+  // Logged-out visitors land on the public marketing page, which funnels to
+  // the login / live demo.
+  res.redirect('/welcome');
 }
 
 // ----------------------------------------------------------------------------

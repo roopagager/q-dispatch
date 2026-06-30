@@ -32,6 +32,11 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
+// --- Public marketing landing page ------------------------------------------
+app.get('/welcome', (_req, res) =>
+  res.sendFile(path.join(__dirname, '../public/landing.html'))
+);
+
 // --- Auth routes (public) ---------------------------------------------------
 app.get('/login', loginPage);
 app.post('/api/auth/login', loginPost);
