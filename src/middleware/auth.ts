@@ -105,17 +105,34 @@ export function loginPost(req: Request, res: Response): void {
     return;
   }
 
+  issueSession(res);
+  res.json({ ok: true });
+}
+
+function issueSession(res: Response): void {
   pruneExpired();
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(token, { expires: Date.now() + SESSION_TTL_MS });
-
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
     maxAge: SESSION_TTL_MS,
   });
-  res.json({ ok: true });
+}
+
+/**
+ * One-click public demo entry — creates a session without credentials and
+ * lands the visitor in the app. Disable for a real deployment with
+ * PUBLIC_DEMO=false (then visitors must log in normally).
+ */
+export function demoLogin(_req: Request, res: Response): void {
+  if (process.env.PUBLIC_DEMO === 'false') {
+    res.redirect('/login');
+    return;
+  }
+  issueSession(res);
+  res.redirect('/');
 }
 
 export function logout(req: Request, res: Response): void {

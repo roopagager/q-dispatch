@@ -13,7 +13,7 @@ import { initDb } from './db';
 import { seedIfEmpty } from './seed';
 import { seedFullDemoIfEmpty } from './demoSeed';
 import { startCron } from './cron';
-import { requireLogin, loginPage, loginPost, logout } from './middleware/auth';
+import { requireLogin, loginPage, loginPost, logout, demoLogin } from './middleware/auth';
 import { getLastPolledAt } from './inbox';
 import claimsRouter from './routes/claims';
 import auditRouter from './routes/audit';
@@ -38,6 +38,7 @@ app.get('/welcome', (_req, res) =>
 );
 
 // --- Auth routes (public) ---------------------------------------------------
+app.get('/demo', demoLogin); // one-click public demo entry
 app.get('/login', loginPage);
 app.post('/api/auth/login', loginPost);
 app.post('/api/auth/logout', logout);
